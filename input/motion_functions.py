@@ -212,6 +212,51 @@ def my_integrate_rotation(initial_quat, omega, dt):
 
 
 
+def my_integrate_shear_displacement(n, omega1, omega2, omega_b, R1, R2, dt):
+    """
+    Compute the instantaneous shear velocities and shear displacements
+    for a batch of time steps, given a constant rigid-body angular velocity.
+
+    Parameters
+    ----------
+    n : array_like, shape (N, 3)
+        Sequence of already-normalised contact normal vectors at each time step.
+    omega1 : array_like, shape (N, 3)
+        Sequence of angular velocity vectors of particle 1.
+    omega2 : array_like, shape (N, 3)
+        Sequence of angular velocity vectors of particle 2.
+    omega_b : array_like, shape (3,)
+        Constant rigid-body angular velocity vector (projected along the normal).
+    R1 : float
+        Radius of particle 1 (constant).
+    R2 : float
+        Radius of particle 2 (constant).
+    dt : float
+        Time step size (constant).
+
+    Returns
+    -------
+    v_slide : ndarray, shape (N, 3)
+        Instantaneous shear (sliding) velocities at each time step.
+    u_t : ndarray, shape (N, 3)
+        Shear displacement vectors over each time step dt.
+    """
+    n = np.array(n, dtype=float)
+    omega1 = np.array(omega1, dtype=float)
+    omega2 = np.array(omega2, dtype=float)
+    omega_b = np.asarray(omega_b, dtype=float)
+
+    # Instantaneous shear velocity at each time
+    v_slide = R1 * np.cross(omega1 - omega_b, n, axis=1) + \
+              R2 * np.cross(omega2 - omega_b, n, axis=1)
+
+    # Shear displacement per time step
+    u_t = v_slide * dt
+
+    return v_slide, u_t
+
+
+
 # Example usage
 if __name__ == "__main__":
      initial_quat = [0, 1, 0, 0]  # Identity quaternion

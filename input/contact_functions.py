@@ -23,8 +23,8 @@ def my_simulate_contact_force(motions, Fn_func, Ft_func, contact_params):
             'n_ij'   : (N,3) contact normals
             'v_ijn'  : (N,1) normal component of rel vel
             'l_ij'   : (N,1) center-center distance
-            optional 'u_n' : (N,1) normal displacement
-            optional 'u_t' : (N,3) tangential displacement
+            'u_n' : (N,1) normal displacement or penetration distance
+            'u_t' : (N,3) tangential displacement
     Fn_func : callable
         Function to compute normal force:
             Fn = Fn_func(contact_params, motions)
@@ -86,7 +86,10 @@ def Fn_linear_elastic(contact_params, motions):
 
 
 
-def Ft_linear_friction(contact_params, motions, Fn):
+def Ft_Coulomb_friction(contact_params, motions, Fn):
+    """The elastic-perfectly plastic tangential law, 
+     the Cundall-Strack friction model, or
+     Coulomb friction model."""
     kt = contact_params['k_t']
     mu = contact_params['mu']
     ut = motions['u_t']

@@ -100,6 +100,7 @@ def my_simulate_contact(
     v_i = np.zeros((N,3)); v_j = np.zeros((N,3))
     omega_i = np.zeros((N,3)); omega_j = np.zeros((N,3))
     u_n = np.zeros((N,1)) if R_i is not None and R_j is not None else None
+    u_t = np.zeros((N,3)) if R_i is not None and R_j is not None else None
 
     # Precompute constants
     denom = w**2 + k**2
@@ -165,6 +166,7 @@ def my_simulate_contact(
     }
     if u_n is not None:
         results['u_n'] = u_n
+        results['u_t'] = u_t
     return results
 
 

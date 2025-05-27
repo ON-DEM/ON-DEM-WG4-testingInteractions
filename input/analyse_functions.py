@@ -110,3 +110,83 @@ def test_momentum_conservation(motions_list, masses, inertias, external_forces=N
         'ang_conserved': ang_conserved
     }
 
+def my_compare_results(sim_results, ana_results, tol=None):
+    """
+    Compare two 'results' dictionaries (simulation vs analytical) over time.
+
+    Parameters
+    ----------
+    sim_results : dict
+        Simulation output dict containing keys:
+            't', 'x_i', 'x_j', 'v_i', 'v_j',
+            'omega_i', 'omega_j', 'n_ij', 'v_ijn', 'l_ij',
+            optionally 'u_n', 'u_t',
+            'Fn', 'Ft', 'F', 'T',
+            'q_i', 'q_j' (orientations as quaternions Nx4).
+    ana_results : dict
+        Analytical output dict with the same keys as sim_results.
+    tol : dict, optional
+        Per-key tolerances for comparison. Default:
+            tol = {
+                'position': 1e-6,
+                'orientation': 1e-6,
+                'force': 1e-6,
+                'torque': 1e-6
+            }
+
+    Returns
+    -------
+    report : dict
+        For each comparison, a boolean array of length N and an overall pass flag.
+        Keys:
+            'x_i', 'x_j', 'q_i', 'q_j', 'F', 'T'
+            Each maps to dict with:
+                'diff': ndarray (N,),
+                'pass': ndarray (N,), 
+                'all_pass': bool
+    """
+    if tol is None:
+        tol = {'position':1e-6, 'orientation':1e-6, 'force':1e-6, 'torque':1e-6}
+
+    def compare_array(key_sim, key_ana, tol_val):
+        arr_sim = np.asarray(sim_results[key_sim])
+        arr_ana = np.asarray(ana_results[key_ana])
+        # compute norm of difference per time step
+        diffs = np.linalg.norm(arr_sim - arr_ana, axis=1)
+        passes = diffs <= tol_val
+        return diffs, passes, bool(np.all(passes))
+
+    report = {}
+
+    # Positions
+    report['x_i'] = dict(zip(
+        ['diff','pass','all_pass'],
+        compare_array('x_i','x_i', tol['position'])
+    ))
+    report['x_j'] = dict(zip(
+        ['diff','pass','all_pass'],
+        compare_array('x_j','x_j', tol['position'])
+    ))
+
+    # Orientations (quaternions)
+    # Compute quaternion distance: norm of elementwise difference
+    report['q_i'] = dict(zip(
+        ['diff','pass','all_pass'],
+        compare_array('q_i','q_i', tol['orientation'])
+    ))
+    report['q_j'] = dict(zip(
+        ['diff','pass','all_pass'],
+        compare_array('q_j','q_j', tol['orientation'])
+    ))
+
+    # Forces
+    report['F'] = dict(zip(
+        ['diff','pass','all_pass'],
+        compare_array('F','F', tol['force'])
+    ))
+    report['T'] = dict(zip(
+        ['diff','pass','all_pass'],
+        compare_array('T','T', tol['torque'])
+    ))
+
+    return report

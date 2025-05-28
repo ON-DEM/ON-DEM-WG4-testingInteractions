@@ -1,3 +1,5 @@
+# Danny van der Haven, dannyvdhaven@gmail.com
+
 import numpy as np
 from scipy.spatial.transform import Rotation
 
@@ -7,7 +9,7 @@ from scipy.spatial.transform import Rotation
 
 def my_simulate_motion(
     x_b, v_b, omega_b,
-    init_quat_i, init_quat_j,
+    init_q_i, init_q_j,
     A, w, phi, k, l0,
     n_r, n_s,
     omega_t_func, omega_r_func, omega_s_func,
@@ -20,7 +22,7 @@ def my_simulate_motion(
     ------
     x_b, v_b, omega_b : (3,) vectors
         Base position, velocity, and angular velocity.
-    init_quat_i, init_quat_j : (4,) vectors
+    init_q_i, init_q_j : (4,) vectors
         Initial orientations of particles i and j given by quaternion
         with format [x, y, z, w]
     A, w, phi, k : scalars
@@ -40,7 +42,7 @@ def my_simulate_motion(
       t: (N,1)
       x_i,x_j: (N,3)
       v_i,v_j: (N,3)
-      quat_i,quat_j: (N,3)
+      q_i,q_j: (N,3)
       omega_i,omega_j: (N,3)
       n_ij,v_ij,l_ij: (N,3)
     """
@@ -137,15 +139,15 @@ def my_simulate_motion(
                         - 0.5 * omegar_r * nr_r
                         + 0.5 * omegar_s * nr_s)
 
-    quat_i =  my_integrate_rotation(init_quat_i, omega_i, dt)
-    quat_j =  my_integrate_rotation(init_quat_j, omega_j, dt)
+    q_i =  my_integrate_rotation(init_q_i, omega_i, dt)
+    q_j =  my_integrate_rotation(init_q_j, omega_j, dt)
 
     # Package results
     motions = {
         't': t.reshape(-1,1),
         'x_i': x_i, 'x_j': x_j,
         'v_i': v_i, 'v_j': v_j,
-        'quat_i': quat_i, 'quat_j': quat_j,
+        'quat_i': q_i, 'quat_j': q_j,
         'omega_i': omega_i, 'omega_j': omega_j,
         'n_ij': n_ij, 'v_ijn': v_ijn, 'l_ij': l_ij
     }

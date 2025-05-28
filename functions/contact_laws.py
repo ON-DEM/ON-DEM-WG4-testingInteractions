@@ -1,3 +1,5 @@
+# Danny van der Haven, dannyvdhaven@gmail.com
+
 import numpy as np
 
 #
@@ -9,7 +11,8 @@ def Fn_linear_elastic(contact_params, motions):
     kn = contact_params['k_n']
     u_n = motions['u_n'].reshape(-1)
     n_ij = motions['n_ij']
-    return kn * u_n[:, None] * n_ij
+    Fn = kn * u_n[:, None] * n_ij
+    return Fn
 
 
 
@@ -25,7 +28,8 @@ def Fn_hertzian(contact_params, motions):
 
     k_n = (4.0 / 3.0) * E_star * np.sqrt(R_star)
     mag = k_n * u_n**1.5
-    return mag[:, None] * n_ij
+    Fn = mag[:, None] * n_ij
+    return Fn
 
 
 

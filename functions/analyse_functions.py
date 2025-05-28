@@ -1,3 +1,5 @@
+# Danny van der Haven, dannyvdhaven@gmail.com
+
 import numpy as np
 
 #

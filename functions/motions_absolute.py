@@ -1,3 +1,6 @@
+# Danny van der Haven, dannyvdhaven@gmail.com
+# Outdated.
+
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 

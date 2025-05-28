@@ -1,3 +1,5 @@
+# Danny van der Haven, dannyvdhaven@gmail.com
+
 import numpy as np
 
 #
@@ -66,7 +68,7 @@ def my_simulate_contact(motions, contact_params, Fn_func, Ft_func):
 
     # Total force
     F_i = Fn + Ft
-    F_j = - F_i
+    F_j = -F_i
 
     # Compute torque: T_i = r_i * (n_ij_i × F_i)
     n_ij = motions['n_ij']
@@ -81,8 +83,6 @@ def my_simulate_contact(motions, contact_params, Fn_func, Ft_func):
     # Package results
     result = motions.copy()
     result.update({
-        'Fn': Fn,
-        'Ft': Ft,
         'F_i': F_i,
         'F_j': F_j,
         'T_i': T_i,
@@ -144,30 +144,30 @@ def my_compute_effective_params(contact_params):
       - G* effective shear modulus
       - R* effective radius
 
-    Expects keys: 'E1','nu1','E2','nu2','R1','R2' (optional 'G1','G2').
+    Expects keys: 'E_i','nu_i','E_j','nu_j','R_i','R_j' (optional 'G_i','G_j').
     """
-    E1, nu1 = contact_params['E1'], contact_params['nu1']
-    E2, nu2 = contact_params['E2'], contact_params['nu2']
-    R1, R2 = contact_params['R1'], contact_params['R2']
-    G1 = contact_params.get('G1', None)
-    G2 = contact_params.get('G2', None)
+    E_i, nu_i = contact_params['E_i'], contact_params['nu_i']
+    E_j, nu_j = contact_params['E_j'], contact_params['nu_j']
+    R_i, R_j = contact_params['R_i'], contact_params['R_j']
+    G_i = contact_params.get('G_i', None)
+    G_j = contact_params.get('G_j', None)
 
     # Effective normal modulus
-    inv_E_star = (1 - nu1**2) / E1 + (1 - nu2**2) / E2
+    inv_E_star = (1 - nu_i**2) / E_i + (1 - nu_j**2) / E_j
     E_star = 1.0 / inv_E_star
 
     # Determine shear moduli
-    if G1 is None:
-        G1 = E1 / (2.0 * (1.0 + nu1))
-    if G2 is None:
-        G2 = E2 / (2.0 * (1.0 + nu2))
+    if G_i is None:
+        G_i = E_i / (2.0 * (1.0 + nu_i))
+    if G_j is None:
+        G_j = E_j / (2.0 * (1.0 + nu_j))
 
     # Effective shear modulus
-    inv_G_star = (2.0 - nu1) / G1 + (2.0 - nu2) / G2
+    inv_G_star = (2.0 - nu_i) / G_i + (2.0 - nu_j) / G_j
     G_star = 1.0 / inv_G_star
 
     # Effective radius
-    R_star = (R1 * R2) / (R1 + R2)
+    R_star = (R_i * R_j) / (R_i + R_j)
 
     return E_star, G_star, R_star
 

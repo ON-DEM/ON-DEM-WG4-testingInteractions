@@ -13,18 +13,18 @@ def my_simulate_contact_force(motions, contact_params, Fn_func, Ft_func):
             'kn' : float - normal stiffness
             'kt' : float - tangential stiffness
             'mu' : float - friction coefficient
-            'R'  : float - reference length (e.g., particle radius or sum of radii)
+            'R_i','R_j'  : float - reference length to surface,
+                particle radii in the case of spheres.
     motions : dict of ndarrays
         Input motion data with keys:
             't'      : (N,1) time array
             'x_i','x_j' : (N,3) position arrays
             'v_i','v_j' : (N,3) velocity arrays
+            'quat_i','quat_j' : (N,4) orientation quaternions
             'omega_i','omega_j': (N,3) angular vel arrays
             'n_ij'   : (N,3) contact normals
             'v_ijn'  : (N,1) normal component of rel vel
-            'l_ij'   : (N,1) center-center distance
-            'u_n' : (N,1) normal displacement or penetration distance
-            'u_t' : (N,3) tangential displacement
+            'l_ij'   : (N,3) center-center branch vector
     Fn_func : callable
         Function to compute normal force:
             Fn = Fn_func(contact_params, motions)
@@ -44,36 +44,94 @@ def my_simulate_contact_force(motions, contact_params, Fn_func, Ft_func):
             'T'  : (N,3) torque vector
     """
     # Extract contact parameters
-    R  = contact_params['R']
+    R_i  = contact_params['R_i']
+    R_j  = contact_params['R_j']
+
+    # Compute normal overlap
+    l_ij = motions['l_ij']           # (N,3) center distance vectors
+    l_mag = np.linalg.norm(l_ij, axis=1)
+    motions['u_n'] = (R1 + R2 - l_mag).reshape(-1,1)
+
+    # Compute shear kinematics
+    v_slide, u_t = my_integrate_shear_displacement(contact_params, motions)
+    motions['v_slide'] = v_slide
+    motions['u_t']     = u_t
 
     # Compute forces via provided functions
     Fn = Fn_func(contact_params, motions)          # shape (N,3)
     Ft = Ft_func(contact_params, motions, Fn)      # shape (N,3)
 
     # Total force
-    F = Fn + Ft
+    F_i = Fn + Ft
+    F_j = - F_i
 
     # Compute torque: T_i = r_i * (n_ij_i × F_i)
     n_ij = motions['n_ij']
-    N = n_ij.shape[0]
     # Determine lever arm r per contact
-    if 'u_n' in motions:
-        u_n = motions['u_n'].reshape(-1)
-        r = R - u_n
-    else:
-        r = np.full(N, R)
-    cross_nF = np.cross(n_ij, F)
-    T = (r.reshape(-1,1) * cross_nF)
+    u_n = motions['u_n'].reshape(-1)
+    r_i = R_i - u_n
+    r_j = R_j - u_n
+    cross_nF_i = np.cross(n_ij, F_i)
+    cross_nF_j = np.cross(-n_ij, F_j)
+    T_i = (r_i.reshape(-1,1) * cross_nF_i)
+    T_j = (r_j.reshape(-1,1) * cross_nF_j)
 
     # Package results
     result = motions.copy()
     result.update({
         'Fn': Fn,
         'Ft': Ft,
-        'F': F,
-        'T': T
+        'F_i': F_i,
+        'F_j': F_j,
+        'T_i': T_i,
+        'T_j': T_j
     })
     return result
+
+
+
+def my_integrate_shear_displacement(contact_params, motions):
+    """
+    Compute the instantaneous shear velocities and shear displacements
+    for a batch of time steps, given a constant rigid-body angular velocity.
+
+    Parameters
+    ----------
+    contact_params : dict
+        Dictionary of contact parameters. Expected keys:
+            'R_i' : float - radius of particle i
+            'R_j' : float - radius of particle j
+    motions : dict of ndarrays
+        Input motion data with keys:
+            'n_ij'      : (N,3) contact normal vectors at each time step
+            'omega_i'   : (N,3) angular velocity vectors of particle i
+            'omega_j'   : (N,3) angular velocity vectors of particle j
+            'omega_b'   : (3,)  constant rigid-body angular velocity vector
+            'dt'        : float  time step size
+
+    Returns
+    -------
+    v_slide : ndarray, shape (N, 3)
+        Instantaneous shear (sliding) velocities at each time step.
+    u_t : ndarray, shape (N, 3)
+        Shear displacement vectors over each time step dt.
+    """
+    n      = np.array(motions['n_ij'],    dtype=float)
+    omega_i = np.array(motions['omega_i'], dtype=float)
+    omega_j = np.array(motions['omega_j'], dtype=float)
+    omega_b = np.asarray(motions['omega_b'], dtype=float)
+    dt      = motions['dt']
+    R_i      = contact_params['R_i']
+    R_j      = contact_params['R_j']
+
+    # Instantaneous shear velocity at each time
+    v_slide = R_i * np.cross(omega_i - omega_b, n, axis=1) + \
+              R_j * np.cross(omega_j - omega_b, n, axis=1)
+
+    # Shear displacement per time step
+    u_t = v_slide * dt
+
+    return v_slide, u_t
 
 
 
@@ -110,114 +168,6 @@ def my_compute_effective_params(contact_params):
     R_star = (R1 * R2) / (R1 + R2)
 
     return E_star, G_star, R_star
-
-
-
-#
-#   NORMAL FORCE LAWS
-#
-
-def Fn_linear_elastic(contact_params, motions):
-    """F_n = - k_n u_n"""
-    kn = contact_params['k_n']
-    u_n = motions['u_n'].reshape(-1)
-    n_ij = motions['n_ij']
-    return kn * u_n[:, None] * n_ij
-
-
-
-def Fn_hertzian(contact_params, motions):
-    """
-    Hertzian normal force: F_n = k_n * u_n^(3/2) * n_ij
-    k_n = (4/3) * E* * sqrt(R*)
-    """
-    u_n = motions['u_n'].reshape(-1)   # (N,)
-    n_ij = motions['n_ij']             # (N,3)
-
-    E_star, _, R_star = my_compute_effective_params(contact_params)
-
-    k_n = (4.0 / 3.0) * E_star * np.sqrt(R_star)
-    mag = k_n * u_n**1.5
-    return mag[:, None] * n_ij
-
-
-
-#
-#   TANGENTIAL FORCE LAWS
-#
-
-def Ft_linear_shear(contact_params, motions, Fn):
-    """
-    Linear shear stiffness: F_t = -k_s0 * u_t, capped by Coulomb
-    where k_s0 = 8 * G* * sqrt(R*)
-    """
-    ut = motions['u_t']
-    mu = contact_params['mu']
-
-    _, G_star, R_star = my_compute_effective_params(contact_params)
-    k_s0 = 8.0 * G_star * np.sqrt(R_star)
-
-    Ft = -k_s0 * ut
-    # Coulomb limit
-    Fn_mag = np.linalg.norm(Fn, axis=1)
-    Ft_mag = np.linalg.norm(Ft, axis=1)
-    slip = Ft_mag > mu * Fn_mag
-    Ft[slip] *= (mu * Fn_mag[slip] / Ft_mag[slip])[:, None]
-    return Ft
-
-
-
-def Ft_full_mindlin(contact_params, motions, Fn):
-    """
-    Full no-slip Mindlin: F_t = -k_s * u_t, capped by Coulomb
-    where k_s = k_s0 * sqrt(u_n), k_s0 = 8 * G* * sqrt(R*)
-    """
-    ut = motions['u_t']
-    u_n = motions['u_n'].reshape(-1)
-    mu = contact_params['mu']
-
-    _, G_star, R_star = my_compute_effective_params(contact_params)
-    k_s0 = 8.0 * G_star * np.sqrt(R_star)
-
-    k_s = k_s0 * np.sqrt(u_n)
-    Ft = - (k_s[:, None] * ut)
-
-    # Coulomb limit
-    Fn_mag = np.linalg.norm(Fn, axis=1)
-    Ft_mag = np.linalg.norm(Ft, axis=1)
-    slip = Ft_mag > mu * Fn_mag
-    Ft[slip] *= (mu * Fn_mag[slip] / Ft_mag[slip])[:, None]
-    return Ft
-
-
-
-def Ft_partial_slip(contact_params, motions, Fn):
-    """
-    Mindlin–Deresiewitz partial-slip:
-      F_t = -8 G* a [ u_t - ((a-c)/(3 a^2)) |u_t|^2 u_t ], Coulomb-limited
-      where a = sqrt(R* u_n), c = a (1 - |u_t|/a)^(1/3)
-    """
-    ut = motions['u_t']
-    u_n = motions['u_n'].reshape(-1)
-    mu = contact_params['mu']
-
-    _, G_star, R_star = my_compute_effective_params(contact_params)
-    a = np.sqrt(R_star * u_n)
-
-    ut_mag = np.linalg.norm(ut, axis=1)
-    ratio = np.clip(1 - ut_mag / a, 0.0, None)
-    c = a * ratio**(1.0/3.0)
-
-    term = (a - c) / (3.0 * a**2)
-    diff = ut - (term[:, None] * (ut_mag**2)[:, None] * ut / ut_mag[:, None])
-    Ft = -8.0 * G_star * a[:, None] * diff
-
-    # Coulomb limit
-    Fn_mag = np.linalg.norm(Fn, axis=1)
-    Ft_mag = np.linalg.norm(Ft, axis=1)
-    slip = Ft_mag > mu * Fn_mag
-    Ft[slip] *= (mu * Fn_mag[slip] / Ft_mag[slip])[:, None]
-    return Ft
 
 
 
@@ -332,3 +282,4 @@ def my_cundall_strack(kn, kt, mu, R, un, ut, n):
     }
     return result
 
+# End of file

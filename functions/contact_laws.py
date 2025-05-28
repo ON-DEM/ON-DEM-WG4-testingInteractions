@@ -24,12 +24,60 @@ def Fn_hertzian(contact_params, motions):
     u_n = motions['u_n'].reshape(-1)   # (N,)
     n_ij = motions['n_ij']             # (N,3)
 
-    E_star, _, R_star = my_compute_effective_params(contact_params)
+    E_star, _, R_star, _ = my_compute_effective_params(contact_params)
 
     k_n = (4.0 / 3.0) * E_star * np.sqrt(R_star)
     mag = k_n * u_n**1.5
     Fn = mag[:, None] * n_ij
     return Fn
+
+
+
+def Fn_viscous_const(contact_params, motions):
+    """
+    Viscous normal damping (constant restitution model).
+
+    eta_n = 2 * sqrt(m_star * k_n) * beta_n
+    F_n_visc = - eta_n * v_n * n_ij
+    """
+    _, _, _, m_star = my_compute_effective_params(contact_params)
+    k_n     = contact_params['k_n']
+    beta_n  = contact_params['beta_n']
+    v_n     = motions['v_n']             # (N,)
+    n_ij    = motions['n_ij']            # (N,3)
+
+    # viscous coefficient
+    eta_n = 2.0 * np.sqrt(m_star * k_n) * beta_n
+
+    # viscous normal force vector
+    Fn_visc = - eta_n * v_n[:, None] * n_ij
+    return Fn_visc
+
+
+
+def Fn_viscous_veldep(contact_params, motions):
+    """
+    Viscous normal damping (velocity-dependent restitution model).
+
+    beta = - ln(e) / sqrt(pi^2 + [ln(e)]^2)
+    eta_n = 2 * sqrt(m_star * k_n) * beta
+    F_n_visc = - eta_n * v_n * n_ij
+    """
+    _, _, _, m_star = my_compute_effective_params(contact_params)
+    k_n  = contact_params['k_n']
+    cor  = contact_params['restitution']
+    v_n  = motions['v_n']
+    n_ij = motions['n_ij']
+
+    # damping ratio
+    beta = - np.log(cor) / np.sqrt(np.pi**2 + (np.log(cor))**2)
+
+    # viscous coefficient
+    eta_n = 2.0 * np.sqrt(m_star * k_n) * beta
+
+    # viscous normal force
+    Fn_visc = - eta_n * v_n[:, None] * n_ij
+    return Fn_visc
 
 
 
@@ -45,7 +93,7 @@ def Ft_linear_shear(contact_params, motions, Fn):
     u_t = motions['u_t']
     mu = contact_params['mu']
 
-    _, G_star, R_star = my_compute_effective_params(contact_params)
+    _, G_star, R_star, _ = my_compute_effective_params(contact_params)
     k_s0 = 8.0 * G_star * np.sqrt(R_star)
 
     Ft = -k_s0 * u_t
@@ -64,10 +112,10 @@ def Ft_full_mindlin(contact_params, motions, Fn):
     where k_s = k_s0 * sqrt(u_n), k_s0 = 8 * G* * sqrt(R*)
     """
     u_t = motions['u_t']
-    u_n = motions['u_n'].reshape(-1)
+    u_n = motions['u_n']
     mu = contact_params['mu']
 
-    _, G_star, R_star = my_compute_effective_params(contact_params)
+    _, G_star, R_star, _ = my_compute_effective_params(contact_params)
     k_s0 = 8.0 * G_star * np.sqrt(R_star)
 
     k_s = k_s0 * np.sqrt(u_n)
@@ -92,7 +140,7 @@ def Ft_partial_slip(contact_params, motions, Fn):
     u_n = motions['u_n'].reshape(-1)
     mu = contact_params['mu']
 
-    _, G_star, R_star = my_compute_effective_params(contact_params)
+    _, G_star, R_star, _ = my_compute_effective_params(contact_params)
     a = np.sqrt(R_star * u_n)
 
     u_t_mag = np.linalg.norm(u_t, axis=1)
@@ -109,5 +157,52 @@ def Ft_partial_slip(contact_params, motions, Fn):
     slip = Ft_mag > mu * Fn_mag
     Ft[slip] *= (mu * Fn_mag[slip] / Ft_mag[slip])[:, None]
     return Ft
+
+
+
+def Ft_viscous_const(contact_params, motions):
+    """
+    Viscous tangential damping (constant restitution model).
+
+    eta_t = 2 * sqrt(m_star * k_t) * beta_t
+    F_t_visc = - eta_t * v_t
+    """
+    _, _, _, m_star = my_compute_effective_params(contact_params)
+    k_t     = contact_params['k_t']
+    beta_t  = contact_params['beta_t']
+    v_t     = motions['v_t']               # (N,3)
+
+    # viscous coefficient
+    eta_t = 2.0 * np.sqrt(m_star * k_t) * beta_t
+
+    # viscous tangential force
+    Ft_visc = - eta_t * v_t
+    return Ft_visc
+
+
+
+def Ft_viscous_veldep(contact_params, motions):
+    """
+    Viscous tangential damping (velocity-dependent restitution model).
+
+    beta = - ln(e) / sqrt(pi^2 + [ln(e)]^2)
+    eta_t = 2 * sqrt(m_star * k_t) * beta
+    F_t_visc = - eta_t * v_t
+    """
+    # unpack
+    _, _, _, m_star = my_compute_effective_params(contact_params)
+    k_t  = contact_params['k_t']
+    cor  = contact_params['restitution']
+    v_t  = motions['v_t']
+
+    # damping ratio
+    beta = - np.log(cor) / np.sqrt(np.pi**2 + (np.log(cor))**2)
+
+    # viscous coefficient
+    eta_t = 2.0 * np.sqrt(m_star * k_t) * beta
+
+    # viscous tangential force
+    Ft_visc = - eta_t * v_t
+    return Ft_visc
 
 # End of file

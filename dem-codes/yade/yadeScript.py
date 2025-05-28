@@ -1,11 +1,14 @@
 # Copyright 2025: Bruno Chareyre <bruno.chareyre@grenoble-inp.fr>
 # Execution: "yade generateForces.py input.txt", where "input.txt" is a time series of velocities
 
-from yade import pack, plot, sys
+from yade import pack, plot, sys, os
 import numpy as np
+import matplotlib.pyplot as plt
 
 if len(sys.argv)>1:
 	inputFile = sys.argv[1]
+	baseName = os.path.splitext(inputFile)[0]
+	outputFile = baseName+".out"
 else:
 	print("please specify input file")
 	exit()
@@ -65,5 +68,7 @@ plot.plots = {'t': ('f1x',)}
 plot.plot()
 O.dt=1
 
-## --- Run simulation ---
+## --- Run simulation and save ---
 O.run(len(velocity_data), True)
+plot.saveDataTxt(outputFile)
+plt.savefig(baseName+".png")

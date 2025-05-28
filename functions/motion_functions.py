@@ -62,7 +62,7 @@ def my_simulate_motion(
     # Vector validations
     if x_b.shape != (3,) or v_b.shape != (3,) or omega_b.shape != (3,):
         raise ValueError("Inputs x_b, v_b, omega_b must be 3-vectors.")
-    if len(init_quat_i) != 4 or len(init_quat_j) != 4:
+    if len(init_q_i) != 4 or len(init_q_j) != 4:
         raise ValueError("Inputs init_quat_i and init_quat_j must be 4-vectors.")
     if l0.shape != (3,):
         raise ValueError("Initial branch vector l0 must be a 3-vector.")

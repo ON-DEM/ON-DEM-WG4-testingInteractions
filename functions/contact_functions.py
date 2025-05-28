@@ -58,9 +58,9 @@ def my_simulate_contact(motions, contact_params, Fn_func, Ft_func):
     motions['u_n'] = u_n
 
     # Compute shear kinematics
-    v_slide, u_t = my_integrate_shear_displacement(contact_params, motions)
-    motions['v_slide'] = v_slide
-    motions['u_t']     = u_t
+    v_t, u_t = my_integrate_shear_displacement(contact_params, motions)
+    motions['v_t'] = v_t
+    motions['u_t'] = u_t
 
     # Compute forces via provided functions
     Fn = Fn_func(contact_params, motions)          # shape (N,3)
@@ -113,8 +113,8 @@ def my_integrate_shear_displacement(contact_params, motions):
 
     Returns
     -------
-    v_slide : ndarray, shape (N, 3)
-        Instantaneous shear (sliding) velocities at each time step.
+    v_t : ndarray, shape (N, 3)
+        Instantaneous shear velocities at each time step.
     u_t : ndarray, shape (N, 3)
         Shear displacement vectors over each time step dt.
     """
@@ -127,13 +127,13 @@ def my_integrate_shear_displacement(contact_params, motions):
     R_j      = contact_params['R_j']
 
     # Instantaneous shear velocity at each time
-    v_slide = R_i * np.cross(omega_i - omega_b, n, axis=1) + \
-              R_j * np.cross(omega_j - omega_b, n, axis=1)
+    v_t = R_i * np.cross(omega_i - omega_b, n, axis=1) + \
+          R_j * np.cross(omega_j - omega_b, n, axis=1)
 
     # Shear displacement per time step
-    u_t = v_slide * dt
+    u_t = v_t * dt
 
-    return v_slide, u_t
+    return v_t, u_t
 
 
 
@@ -143,14 +143,17 @@ def my_compute_effective_params(contact_params):
       - E* effective normal modulus
       - G* effective shear modulus
       - R* effective radius
+      - m* effective mass
 
-    Expects keys: 'E_i','nu_i','E_j','nu_j','R_i','R_j' (optional 'G_i','G_j').
+    Expects keys: 'E_i','nu_i','E_j','nu_j','R_i','R_j' (optional 'G_i','G_j','m_i,'m_j').
     """
     E_i, nu_i = contact_params['E_i'], contact_params['nu_i']
     E_j, nu_j = contact_params['E_j'], contact_params['nu_j']
     R_i, R_j = contact_params['R_i'], contact_params['R_j']
     G_i = contact_params.get('G_i', None)
     G_j = contact_params.get('G_j', None)
+    m_i = contact_params.get('m_i',None)
+    m_j = contact_params.get('m_j',None)
 
     # Effective normal modulus
     inv_E_star = (1 - nu_i**2) / E_i + (1 - nu_j**2) / E_j
@@ -169,6 +172,12 @@ def my_compute_effective_params(contact_params):
     # Effective radius
     R_star = (R_i * R_j) / (R_i + R_j)
 
-    return E_star, G_star, R_star
+    # Effective mass
+    if (m_i is not None) and (m_j is not None):
+        m_star = (m_i * m_j) / (m_i + m_j)
+    else:
+        m_star = 1
+
+    return E_star, G_star, R_star, m_star
 
 # End of file

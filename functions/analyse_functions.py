@@ -207,4 +207,14 @@ def my_compare_results(sim_results, ana_results, tol=None):
 
     return report
 
+
+
+def my_check_all(report):
+    for key in ['F_i', 'F_j', 'T_i', 'T_j']:
+        all_ok = report[key]['all_pass']
+        print(f"{key} check passed: {all_ok}")
+        if not all_ok:
+            failing_steps = np.where(~report[key]['pass'])[0]
+            print(f"  Failed at steps: {failing_steps}")
+
 # End of file

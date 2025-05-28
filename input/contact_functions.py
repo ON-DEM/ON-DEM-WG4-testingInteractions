@@ -2,9 +2,9 @@ import numpy as np
 
 
 
-def my_simulate_contact_force(motions, Fn_func, Ft_func, contact_params):
+def my_simulate_contact_force(motions, contact_params, Fn_func, Ft_func):
     """
-    Generalised contact law batch processor.
+    Generalised contact force batch processor.
 
     Parameters
     ----------
@@ -77,8 +77,48 @@ def my_simulate_contact_force(motions, Fn_func, Ft_func, contact_params):
 
 
 
-# Example generalized Fn and Ft for linear elastic + friction
+def my_compute_effective_params(contact_params):
+    """
+    Compute effective contact parameters for two particles from contact_params dict:
+      - E* effective normal modulus
+      - G* effective shear modulus
+      - R* effective radius
+
+    Expects keys: 'E1','nu1','E2','nu2','R1','R2' (optional 'G1','G2').
+    """
+    E1, nu1 = contact_params['E1'], contact_params['nu1']
+    E2, nu2 = contact_params['E2'], contact_params['nu2']
+    R1, R2 = contact_params['R1'], contact_params['R2']
+    G1 = contact_params.get('G1', None)
+    G2 = contact_params.get('G2', None)
+
+    # Effective normal modulus
+    inv_E_star = (1 - nu1**2) / E1 + (1 - nu2**2) / E2
+    E_star = 1.0 / inv_E_star
+
+    # Determine shear moduli
+    if G1 is None:
+        G1 = E1 / (2.0 * (1.0 + nu1))
+    if G2 is None:
+        G2 = E2 / (2.0 * (1.0 + nu2))
+
+    # Effective shear modulus
+    inv_G_star = (2.0 - nu1) / G1 + (2.0 - nu2) / G2
+    G_star = 1.0 / inv_G_star
+
+    # Effective radius
+    R_star = (R1 * R2) / (R1 + R2)
+
+    return E_star, G_star, R_star
+
+
+
+#
+#   NORMAL FORCE LAWS
+#
+
 def Fn_linear_elastic(contact_params, motions):
+    """F_n = - k_n u_n"""
     kn = contact_params['k_n']
     u_n = motions['u_n'].reshape(-1)
     n_ij = motions['n_ij']
@@ -86,19 +126,101 @@ def Fn_linear_elastic(contact_params, motions):
 
 
 
-def Ft_Coulomb_friction(contact_params, motions, Fn):
-    """The elastic-perfectly plastic tangential law, 
-     the Cundall-Strack friction model, or
-     Coulomb friction model."""
-    kt = contact_params['k_t']
-    mu = contact_params['mu']
+def Fn_hertzian(contact_params, motions):
+    """
+    Hertzian normal force: F_n = k_n * u_n^(3/2) * n_ij
+    k_n = (4/3) * E* * sqrt(R*)
+    """
+    u_n = motions['u_n'].reshape(-1)   # (N,)
+    n_ij = motions['n_ij']             # (N,3)
+
+    E_star, _, R_star = my_compute_effective_params(contact_params)
+
+    k_n = (4.0 / 3.0) * E_star * np.sqrt(R_star)
+    mag = k_n * u_n**1.5
+    return mag[:, None] * n_ij
+
+
+
+#
+#   TANGENTIAL FORCE LAWS
+#
+
+def Ft_linear_shear(contact_params, motions, Fn):
+    """
+    Linear shear stiffness: F_t = -k_s0 * u_t, capped by Coulomb
+    where k_s0 = 8 * G* * sqrt(R*)
+    """
     ut = motions['u_t']
-    Ft = kt * ut
+    mu = contact_params['mu']
+
+    _, G_star, R_star = my_compute_effective_params(contact_params)
+    k_s0 = 8.0 * G_star * np.sqrt(R_star)
+
+    Ft = -k_s0 * ut
+    # Coulomb limit
     Fn_mag = np.linalg.norm(Fn, axis=1)
     Ft_mag = np.linalg.norm(Ft, axis=1)
     slip = Ft_mag > mu * Fn_mag
-    Ft[slip] = (mu * Fn_mag[slip] / Ft_mag[slip])[:, None] * Ft[slip]
+    Ft[slip] *= (mu * Fn_mag[slip] / Ft_mag[slip])[:, None]
     return Ft
+
+
+
+def Ft_full_mindlin(contact_params, motions, Fn):
+    """
+    Full no-slip Mindlin: F_t = -k_s * u_t, capped by Coulomb
+    where k_s = k_s0 * sqrt(u_n), k_s0 = 8 * G* * sqrt(R*)
+    """
+    ut = motions['u_t']
+    u_n = motions['u_n'].reshape(-1)
+    mu = contact_params['mu']
+
+    _, G_star, R_star = my_compute_effective_params(contact_params)
+    k_s0 = 8.0 * G_star * np.sqrt(R_star)
+
+    k_s = k_s0 * np.sqrt(u_n)
+    Ft = - (k_s[:, None] * ut)
+
+    # Coulomb limit
+    Fn_mag = np.linalg.norm(Fn, axis=1)
+    Ft_mag = np.linalg.norm(Ft, axis=1)
+    slip = Ft_mag > mu * Fn_mag
+    Ft[slip] *= (mu * Fn_mag[slip] / Ft_mag[slip])[:, None]
+    return Ft
+
+
+
+def Ft_partial_slip(contact_params, motions, Fn):
+    """
+    Mindlin–Deresiewitz partial-slip:
+      F_t = -8 G* a [ u_t - ((a-c)/(3 a^2)) |u_t|^2 u_t ], Coulomb-limited
+      where a = sqrt(R* u_n), c = a (1 - |u_t|/a)^(1/3)
+    """
+    ut = motions['u_t']
+    u_n = motions['u_n'].reshape(-1)
+    mu = contact_params['mu']
+
+    _, G_star, R_star = my_compute_effective_params(contact_params)
+    a = np.sqrt(R_star * u_n)
+
+    ut_mag = np.linalg.norm(ut, axis=1)
+    ratio = np.clip(1 - ut_mag / a, 0.0, None)
+    c = a * ratio**(1.0/3.0)
+
+    term = (a - c) / (3.0 * a**2)
+    diff = ut - (term[:, None] * (ut_mag**2)[:, None] * ut / ut_mag[:, None])
+    Ft = -8.0 * G_star * a[:, None] * diff
+
+    # Coulomb limit
+    Fn_mag = np.linalg.norm(Fn, axis=1)
+    Ft_mag = np.linalg.norm(Ft, axis=1)
+    slip = Ft_mag > mu * Fn_mag
+    Ft[slip] *= (mu * Fn_mag[slip] / Ft_mag[slip])[:, None]
+    return Ft
+
+
+
 
 
 

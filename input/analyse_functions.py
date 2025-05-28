@@ -1,5 +1,9 @@
 import numpy as np
 
+#
+#   ANALYSE AND COMPARE DEM VS ANALYTICAL
+#
+
 def test_momentum_conservation(motions_list, masses, inertias, external_forces=None,
                                 external_torques=None, r0=None, tol=1e-6):
     """
@@ -110,6 +114,8 @@ def test_momentum_conservation(motions_list, masses, inertias, external_forces=N
         'ang_conserved': ang_conserved
     }
 
+
+
 def my_compare_results(sim_results, ana_results, tol=None):
     """
     Compare two 'results' dictionaries (simulation vs analytical) over time.
@@ -190,3 +196,5 @@ def my_compare_results(sim_results, ana_results, tol=None):
     ))
 
     return report
+
+# End of file

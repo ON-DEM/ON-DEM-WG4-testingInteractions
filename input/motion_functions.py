@@ -1,7 +1,9 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-
+#
+#   SIMULATE MOTION OF TWO PARTICLES
+#
 
 def my_simulate_motion(
     x_b, v_b, omega_b,
@@ -211,20 +213,5 @@ def my_integrate_rotation(initial_quat, omega, dt):
         quats[i + 1] = orientation.as_quat()
     
     return quats
-
-
-
-# Example usage
-if __name__ == "__main__":
-     initial_quat = [0, 1, 0, 0]  # Identity quaternion
-     angular_velocity = np.array([0.1, 0.2, 0.3])  # radians per second
-     dt = 0.01  # timestep in seconds
-     steps = 100  # simulate 1 second
-
-     trajectory = my_integrate_rotation(initial_quat, angular_velocity, dt,
-steps)
-
-     # Print final orientation
-     print("Final orientation (quaternion):", trajectory[-1])
 
 # End of file

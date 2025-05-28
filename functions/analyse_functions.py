@@ -126,11 +126,11 @@ def my_compare_results(sim_results, ana_results, tol=None):
     ----------
     sim_results : dict
         Simulation output dict containing keys:
-            't', 'x_i', 'x_j', 'v_i', 'v_j',
-            'omega_i', 'omega_j', 'n_ij', 'v_ijn', 'l_ij',
-            optionally 'u_n', 'u_t',
-            'Fn', 'Ft', 'F', 'T',
-            'q_i', 'q_j' (orientations as quaternions Nx4).
+            't', (time as vector Nx1)
+            'x_i','x_j', (positions as vectors Nx3)
+            'q_i','q_j', (orientations as quaternions Nx4)
+            'F_i','T_i', (forces and torques on particle i, both Nx3)
+            'F_j','T_j'  (forces and torques on particle j, both Nx3)
     ana_results : dict
         Analytical output dict with the same keys as sim_results.
     tol : dict, optional
@@ -147,11 +147,11 @@ def my_compare_results(sim_results, ana_results, tol=None):
     report : dict
         For each comparison, a boolean array of length N and an overall pass flag.
         Keys:
-            'x_i', 'x_j', 'q_i', 'q_j', 'F', 'T'
-            Each maps to dict with:
-                'diff': ndarray (N,),
-                'pass': ndarray (N,), 
-                'all_pass': bool
+            'x_i','x_j','q_i','q_j','F_i','F_j','T_i','T_j'
+        Each maps to dict with:
+            'diff': ndarray (N,),
+            'pass': ndarray (N,),
+            'all_pass': bool
     """
     if tol is None:
         tol = {'position':1e-6, 'orientation':1e-6, 'force':1e-6, 'torque':1e-6}
@@ -159,7 +159,6 @@ def my_compare_results(sim_results, ana_results, tol=None):
     def compare_array(key_sim, key_ana, tol_val):
         arr_sim = np.asarray(sim_results[key_sim])
         arr_ana = np.asarray(ana_results[key_ana])
-        # compute norm of difference per time step
         diffs = np.linalg.norm(arr_sim - arr_ana, axis=1)
         passes = diffs <= tol_val
         return diffs, passes, bool(np.all(passes))
@@ -176,8 +175,7 @@ def my_compare_results(sim_results, ana_results, tol=None):
         compare_array('x_j','x_j', tol['position'])
     ))
 
-    # Orientations (quaternions)
-    # Compute quaternion distance: norm of elementwise difference
+    # Orientations
     report['q_i'] = dict(zip(
         ['diff','pass','all_pass'],
         compare_array('q_i','q_i', tol['orientation'])
@@ -188,13 +186,23 @@ def my_compare_results(sim_results, ana_results, tol=None):
     ))
 
     # Forces
-    report['F'] = dict(zip(
+    report['F_i'] = dict(zip(
         ['diff','pass','all_pass'],
-        compare_array('F','F', tol['force'])
+        compare_array('F_i','F_i', tol['force'])
     ))
-    report['T'] = dict(zip(
+    report['F_j'] = dict(zip(
         ['diff','pass','all_pass'],
-        compare_array('T','T', tol['torque'])
+        compare_array('F_j','F_j', tol['force'])
+    ))
+
+    # Torques
+    report['T_i'] = dict(zip(
+        ['diff','pass','all_pass'],
+        compare_array('T_i','T_i', tol['torque'])
+    ))
+    report['T_j'] = dict(zip(
+        ['diff','pass','all_pass'],
+        compare_array('T_j','T_j', tol['torque'])
     ))
 
     return report

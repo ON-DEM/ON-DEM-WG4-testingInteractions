@@ -242,6 +242,5 @@ def writeDemInput(results,filename='dem_input.txt'):
     writer.writerow(demInputs.keys())
     writer.writerows(rows)
     file.close()
-    print("file closed")
 
 # End of file

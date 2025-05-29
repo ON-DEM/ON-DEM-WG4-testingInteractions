@@ -85,6 +85,24 @@ def Fn_viscous_veldep(contact_params, motions):
 #   TANGENTIAL FORCE LAWS
 #
 
+def Ft_linear_Coloumb(contact_params, motions, Fn):
+    """
+    Linear shear stiffness: F_t = -k_t * u_t, capped by Coulomb
+    """
+    u_t = motions['u_t']
+    k_t = contact_params['k_t']
+    mu = contact_params['mu']
+
+    Ft = -k_t * u_t
+    # Coulomb limit
+    Fn_mag = np.linalg.norm(Fn, axis=1)
+    Ft_mag = np.linalg.norm(Ft, axis=1)
+    slip = Ft_mag > mu * Fn_mag
+    Ft[slip] *= (mu * Fn_mag[slip] / Ft_mag[slip])[:, None]
+    return Ft
+
+
+
 def Ft_linear_shear(contact_params, motions, Fn):
     """
     Linear shear stiffness: F_t = -k_s0 * u_t, capped by Coulomb

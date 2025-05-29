@@ -50,6 +50,7 @@ def my_simulate_motion(
       q_i,q_j: (N,3)
       omega_i,omega_j: (N,3)
       n_ij,v_ij,l_ij: (N,3)
+      omega_b: (3,)
     """
     # Convert inputs to arrays
     x_b = np.asarray(x_b, float)
@@ -100,6 +101,8 @@ def my_simulate_motion(
     x_i = np.zeros((N,3)); x_j = np.zeros((N,3))
     v_i = np.zeros((N,3)); v_j = np.zeros((N,3))
     omega_i = np.zeros((N,3)); omega_j = np.zeros((N,3))
+    n_ij = np.zeros((N,3)); v_ijn = np.zeros((N,3))
+    l_ij = np.zeros((N,3))
 
     # Precompute constants
     denom = w**2 + k**2
@@ -110,10 +113,10 @@ def my_simulate_motion(
         Rb = Rotation.from_rotvec(omega_b * ti)
 
         # Contact normal
-        n_ij = Rb.apply(n0)
+        n_ij[idx] = Rb.apply(n0)
 
         # Compute relative normal velocity
-        v_ijn = A - B * np.sin(w * ti + phi) * np.exp(k * ti) * n_ij
+        v_ijn[idx] = A - B * np.sin(w * ti + phi) * np.exp(k * ti) * n_ij[idx]
 
         # Compute branch magnitude
         if zero_k:
@@ -127,15 +130,15 @@ def my_simulate_motion(
                    * np.exp(k * ti)
                   )
         # Branch vector
-        l_ij = mag * n_ij
+        l_ij[idx] = mag * n_ij[idx]
         
         # Positions
         x_i[idx] = Rb.apply(x_b) + v_b * ti
-        x_j[idx] = x_i[idx] + l_ij
+        x_j[idx] = x_i[idx] + l_ij[idx]
 
         # Velocities
         v_i[idx] = v_b + np.cross(omega_b, x_i[idx])
-        v_j[idx] = v_i[idx] + np.cross(omega_b, l_ij) + v_ijn
+        v_j[idx] = v_i[idx] + np.cross(omega_b, l_ij[idx]) + v_ijn[idx]
 
         # Angular velocities
         omegar_t = A_t - B_t * np.sin(w_t * ti + phi_t) * np.exp(k_t * ti)
@@ -145,11 +148,11 @@ def my_simulate_motion(
         nr_r = Rb.apply(n_r)
         nr_s = Rb.apply(n_s)
         omega_i[idx] = (omega_b
-                        + 0.5 * omegar_t * n_ij
+                        + 0.5 * omegar_t * n_ij[idx]
                         + 0.5 * omegar_r * nr_r
                         + 0.5 * omegar_s * nr_s)
         omega_j[idx] = (omega_b
-                        - 0.5 * omegar_t * n_ij
+                        - 0.5 * omegar_t * n_ij[idx]
                         - 0.5 * omegar_r * nr_r
                         + 0.5 * omegar_s * nr_s)
 
@@ -158,12 +161,13 @@ def my_simulate_motion(
 
     # Package results
     motions = {
-        't': t.reshape(-1,1),
+        't': t.reshape(-1,1),'dt':dt,
         'x_i': x_i, 'x_j': x_j,
         'v_i': v_i, 'v_j': v_j,
         'quat_i': q_i, 'quat_j': q_j,
         'omega_i': omega_i, 'omega_j': omega_j,
-        'n_ij': n_ij, 'v_ijn': v_ijn, 'l_ij': l_ij
+        'n_ij': n_ij, 'v_ijn': v_ijn, 'l_ij': l_ij,
+        'omega_b': omega_b
     }
     return motions
 

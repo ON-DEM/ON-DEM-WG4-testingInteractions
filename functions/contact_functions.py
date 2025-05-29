@@ -27,7 +27,7 @@ def my_simulate_contact(motions, contact_params, Fn_func, Ft_func):
             'quat_i','quat_j' : (N,4) orientation quaternions
             'omega_i','omega_j': (N,3) angular vel arrays
             'n_ij'   : (N,3) contact normals
-            'v_ijn'  : (N,1) normal component of rel vel
+            'v_ijn'  : (N,3) normal component of rel vel
             'l_ij'   : (N,3) center-center branch vector
     Fn_func : callable
         Function to compute normal force:
@@ -55,6 +55,7 @@ def my_simulate_contact(motions, contact_params, Fn_func, Ft_func):
     l_ij = motions['l_ij']           # (N,3) center distance vectors
     l_mag = np.linalg.norm(l_ij, axis=1)
     u_n = (R_i + R_j - l_mag).reshape(-1,1)
+    u_n = np.maximum(u_n, 0.0)
     motions['u_n'] = u_n
 
     # Compute shear kinematics

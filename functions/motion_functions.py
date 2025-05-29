@@ -214,4 +214,34 @@ def my_integrate_rotation(initial_quat, omega, dt):
     
     return quats
 
+def writeDemInput(results,filename='dem_input.txt'):
+    """
+    Write the DEM inputs to a file. The input is a dictionnary produced by my_simulate_motion.
+    The file will contain the time series of translational and angular velocities
+    """
+ 
+    demInputs = {k: results[k] for k in ['t', 'v_i', 'v_j', 'omega_i', 'omega_j']}
+
+    def flatten_for_csv(arr):
+        arr = np.asarray(arr)
+        if arr.ndim > 1:
+            return arr.reshape(arr.shape[0], -1)
+        return arr
+
+    # Prepare data for writing
+    data = [flatten_for_csv(demInputs[k]) for k in demInputs]
+    rows = np.hstack(data)
+
+
+    file = open('test_results.txt', 'w')
+    file.write("# initial position/orientation as X1,R1,X2,R2,Q1,Q2 (vector/quaternion)\n"
+            "# init: 0 0 0 1 2 0 0 1 0 0 1 0 0 0 1 0\n"
+            "# # Times series of translational and angular velocities)\n")
+    import csv
+    writer = csv.writer(file, delimiter=' ')
+    writer.writerow(demInputs.keys())
+    writer.writerows(rows)
+    file.close()
+    print("file closed")
+
 # End of file

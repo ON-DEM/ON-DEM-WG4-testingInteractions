@@ -47,7 +47,7 @@ plt.xlabel('Time')
 plt.ylabel('Position or velocity')
 plt.legend()
 plt.show(block=False)
-
+plt.savefig('test_plot.png')
 
 # Plotting forces and torques
 plt.figure(1)
@@ -60,4 +60,7 @@ plt.ylabel('Force or torque')
 plt.legend()
 plt.show(block=False)
 
+writeDemInput(results, 'test_input.txt')
 # End of file
+
+

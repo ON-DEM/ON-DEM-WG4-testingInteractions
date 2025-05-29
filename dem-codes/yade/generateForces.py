@@ -26,23 +26,25 @@ O.materials.append(FrictMat(young=1e7, poisson=0.3, frictionAngle=0.5))
 
 # --- Time stepping logic ---
 current_index = 0
-
-def applyVelocities():
+def imposeVelocity():
 	global current_index
 	if current_index < len(velocity_data):
 		row = velocity_data[current_index]
-		# Format: time, vx1, vy1, vz1, vx2, vy2, vz2
+		# Format: time, vx1, vy1, vz1, vx2, vy2, vz2, wx1, wy1, wz1, wx2, wy2, wz2
 		v1 = (row[1], row[2], row[3])
 		v2 = (row[4], row[5], row[6])
+		w1 = (row[7], row[8], row[9])
+		w2 = (row[10], row[11], row[12])
 
 		O.bodies[0].state.vel = v1
 		O.bodies[1].state.vel = v2
+		O.bodies[1].state.angVel = w1
+		O.bodies[1].state.angVel = w2
 
 	current_index += 1
 	
 	
 def saveData():
-# Get total force on particle 2
 	f1,t1 = O.forces.f(0),O.forces.t(0)
 	f2,t2 = O.forces.f(1),O.forces.t(1)
 	s1=O.bodies[0].state
@@ -55,18 +57,18 @@ O.dt = 1e-4
 O.engines = [
 	ForceResetter(),
 	InsertionSortCollider([Bo1_Sphere_Aabb()]),
-	PyRunner(command='applyVelocities()', iterPeriod=1),
+	PyRunner(command='imposeVelocity()', initRun=True, iterPeriod=1),
 	InteractionLoop(
 		[Ig2_Sphere_Sphere_ScGeom()],
 		[Ip2_FrictMat_FrictMat_FrictPhys()],
 		[Law2_ScGeom_FrictPhys_CundallStrack()]
 	),
-	PyRunner(command='saveData()', iterPeriod=1),    
+	PyRunner(command='saveData(); print(O.bodies[1].state.pos)', initRun=True, iterPeriod=1),
 	NewtonIntegrator(gravity=(0, 0, 0), damping=0)
 ]
 
 # --- Set up plotting ---
-plot.plots = {'t': ('f1x',)}
+plot.plots = {'x1': ('f1x',)}
 
 O.dt=1
 

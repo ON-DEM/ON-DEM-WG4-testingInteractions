@@ -10,9 +10,11 @@ from scipy.spatial.transform import Rotation
 def my_simulate_motion(
     x_b, v_b, omega_b,
     init_q_i, init_q_j,
-    A, w, phi, k, l0,
+    A, B, w, phi, k, l0,
+    A_t, B_t, w_t, phi_t, k_t,
+    A_r, B_r, w_r, phi_r, k_r,
+    A_s, B_s, w_s, phi_s, k_s,
     n_r, n_s,
-    omega_t_func, omega_r_func, omega_s_func,
     t_end, dt
 ):
     """
@@ -25,8 +27,11 @@ def my_simulate_motion(
     init_q_i, init_q_j : (4,) vectors
         Initial orientations of particles i and j given by quaternion
         with format [x, y, z, w]
-    A, w, phi, k : scalars
-        Loading amplitude, frequency, phase, and damping.
+    A, B, w, phi, k : scalars
+        Parameters of the loading velocity function, in order:
+        Constant offset, amplitude, frequency, phase, and damping.
+        The _t, _r, and _s indicate the twist, roll, and shear 
+        angular velocity functions.
     l0 : (3,) vector
         Initial branch vector.
     n_r, n_s : (3,) vectors
@@ -57,8 +62,14 @@ def my_simulate_motion(
     # Scalar validations
     if dt <= 0 or t_end <= 0:
         raise ValueError("Scalars dt and t_end must be positive.")
-    if not np.isscalar(A) or not np.isscalar(w) or not np.isscalar(phi) or not np.isscalar(k):
-        raise ValueError("Parameters A, w, phi, and k must be scalars.")
+    if not np.isscalar(A) or not np.isscalar(B) or not np.isscalar(w) or not np.isscalar(phi) or not np.isscalar(k):
+        raise ValueError("Parameters A, B, w, phi, and k must be scalars.")
+    if not np.isscalar(A_t) or not np.isscalar(B_t) or not np.isscalar(w_t) or not np.isscalar(phi_t) or not np.isscalar(k_t):
+        raise ValueError("Parameters A, B, w, phi, and k must be scalars.")
+    if not np.isscalar(A_r) or not np.isscalar(B_r) or not np.isscalar(w_r) or not np.isscalar(phi_r) or not np.isscalar(k_r):
+        raise ValueError("Parameters A, B, w, phi, and k must be scalars.")
+    if not np.isscalar(A_s) or not np.isscalar(B_s) or not np.isscalar(w_s) or not np.isscalar(phi_s) or not np.isscalar(k_s):
+        raise ValueError("Parameters A, B, w, phi, and k must be scalars.")
     # Vector validations
     if x_b.shape != (3,) or v_b.shape != (3,) or omega_b.shape != (3,):
         raise ValueError("Inputs x_b, v_b, omega_b must be 3-vectors.")
@@ -95,28 +106,31 @@ def my_simulate_motion(
     zero_k = np.isclose(k, 0)
 
     for idx, ti in enumerate(t):
-        # Body rotation
-        Rb = my_rotation_matrix(omega_b, ti)
+        # Body rotation, this works because omega_b is constant.
+        Rb = Rotation.from_rotvec(omega_b * ti)
+
+        # Contact normal
+        n_ij = Rb.apply(n0)
 
         # Compute relative normal velocity
-        v_ijn = - A * np.sin(w * ti + phi) * np.exp(k * ti) * Rb.dot(n0)
+        v_ijn = A - B * np.sin(w * ti + phi) * np.exp(k * ti) * n_ij
 
         # Compute branch magnitude
         if zero_k:
-            mag = norm_l0 + (A/w) * (np.cos(w * ti + phi) - 1)
+            mag = norm_l0 + A*ti + (B/w) * (np.cos(w * ti + phi) - 1)
         else:
             mag = (norm_l0
-                   + (A * w) / denom
-                   - (A / denom) 
+                   + A * ti
+                   + (B * w) / denom
+                   - (B / denom) 
                    * (w * np.cos(w * ti + phi) - k * np.sin(w * ti + phi))
                    * np.exp(k * ti)
                   )
-        # Branch vector and normal
-        n_ij = Rb.dot(n0)
+        # Branch vector
         l_ij = mag * n_ij
         
         # Positions
-        x_i[idx] = Rb.dot(x_b) + v_b * ti
+        x_i[idx] = Rb.apply(x_b) + v_b * ti
         x_j[idx] = x_i[idx] + l_ij
 
         # Velocities
@@ -124,12 +138,12 @@ def my_simulate_motion(
         v_j[idx] = v_i[idx] + np.cross(omega_b, l_ij) + v_ijn
 
         # Angular velocities
-        omegar_t = omega_t_func(ti)
-        omegar_r = omega_r_func(ti)
-        omegar_s = omega_s_func(ti)
+        omegar_t = A_t - B_t * np.sin(w_t * ti + phi_t) * np.exp(k_t * ti)
+        omegar_r = A_r - B_r * np.sin(w_r * ti + phi_r) * np.exp(k_r * ti)
+        omegar_s = A_s - B_s * np.sin(w_s * ti + phi_s) * np.exp(k_s * ti)
         # Rotated direction vectors
-        nr_r = Rb.dot(n_r)
-        nr_s = Rb.dot(n_s)
+        nr_r = Rb.apply(n_r)
+        nr_s = Rb.apply(n_s)
         omega_i[idx] = (omega_b
                         + 0.5 * omegar_t * n_ij
                         + 0.5 * omegar_r * nr_r
@@ -152,26 +166,6 @@ def my_simulate_motion(
         'n_ij': n_ij, 'v_ijn': v_ijn, 'l_ij': l_ij
     }
     return motions
-
-
-
-def my_rotation_matrix(omega, t):
-    """
-    Compute the rotation matrix exp(skew(omega) * t) via Rodrigues' formula.
-
-    omega : array_like, shape (3,), constant angular velocity vector
-    t     : float, time
-    """
-    omega = np.asarray(omega, float)
-    theta = np.linalg.norm(omega) * t
-    if np.isclose(theta, 0):
-        return np.eye(3)
-    axis = omega / np.linalg.norm(omega)
-    # The skew-symmetric matrix of the axis
-    K = np.array([[       0, -axis[2],  axis[1]],
-                  [ axis[2],        0, -axis[0]],
-                  [-axis[1],  axis[0],       0]])
-    return np.eye(3) + np.sin(theta) * K + (1 - np.cos(theta)) * (K @ K)
 
 
 

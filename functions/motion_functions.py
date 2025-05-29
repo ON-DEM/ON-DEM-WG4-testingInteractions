@@ -239,6 +239,7 @@ def writeDemInput(results,filename='dem_input.txt'):
             "# # Times series of translational and angular velocities)\n")
     import csv
     writer = csv.writer(file, delimiter=' ')
+    file.write("# ")
     writer.writerow(demInputs.keys())
     writer.writerows(rows)
     file.close()

@@ -60,7 +60,8 @@ plt.ylabel('Force or torque')
 plt.legend()
 plt.show(block=False)
 
-writeDemInput(results, 'test_input.txt')
+dictionaryToCSV(results, open('simulatedTestPath.txt', 'w'))
+writeDemInput(results, 'demInput.txt')
 # End of file
 
 

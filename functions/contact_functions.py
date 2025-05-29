@@ -123,7 +123,7 @@ def my_integrate_shear_displacement(contact_params, motions):
     omega_i = np.array(motions['omega_i'], dtype=float)
     omega_j = np.array(motions['omega_j'], dtype=float)
     omega_b = np.asarray(motions['omega_b'], dtype=float)
-    dt      = motions['dt']
+    dt      = np.array(motions['dt'], dtype=float)
     R_i      = contact_params['R_i']
     R_j      = contact_params['R_j']
 
@@ -132,7 +132,7 @@ def my_integrate_shear_displacement(contact_params, motions):
           R_j * np.cross(omega_j - omega_b, n, axis=1)
 
     # Shear displacement per time step
-    u_t = v_t * dt
+    u_t = v_t * dt[:,None]
 
     return v_t, u_t
 

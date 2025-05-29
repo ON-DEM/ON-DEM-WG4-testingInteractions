@@ -2,6 +2,7 @@
 
 import numpy as np
 from scipy.spatial.transform import Rotation
+from helpers import *
 
 #
 #   SIMULATE MOTION OF TWO PARTICLES
@@ -161,13 +162,13 @@ def my_simulate_motion(
 
     # Package results
     motions = {
-        't': t.reshape(-1,1),'dt':dt,
+        't': t.reshape(-1,1),'dt':[dt]*len(t),
         'x_i': x_i, 'x_j': x_j,
         'v_i': v_i, 'v_j': v_j,
         'quat_i': q_i, 'quat_j': q_j,
         'omega_i': omega_i, 'omega_j': omega_j,
         'n_ij': n_ij, 'v_ijn': v_ijn, 'l_ij': l_ij,
-        'omega_b': omega_b
+        'omega_b': [omega_b]*len(t)
     }
     return motions
 
@@ -214,34 +215,20 @@ def my_integrate_rotation(initial_quat, omega, dt):
     
     return quats
 
+
 def writeDemInput(results,filename='dem_input.txt'):
     """
-    Write the DEM inputs to a file. The input is a dictionnary produced by my_simulate_motion.
+    Write the DEM inputs to a file. The input can a dictionnary produced by my_simulate_motion or my_simulate_contact.
     The file will contain the time series of translational and angular velocities
     """
  
     demInputs = {k: results[k] for k in ['t', 'v_i', 'v_j', 'omega_i', 'omega_j']}
 
-    def flatten_for_csv(arr):
-        arr = np.asarray(arr)
-        if arr.ndim > 1:
-            return arr.reshape(arr.shape[0], -1)
-        return arr
-
-    # Prepare data for writing
-    data = [flatten_for_csv(demInputs[k]) for k in demInputs]
-    rows = np.hstack(data)
-
-
     file = open('test_results.txt', 'w')
     file.write("# initial position/orientation as X1,R1,X2,R2,Q1,Q2 (vector/quaternion)\n"
             "# init: 0 0 0 1 2 0 0 1 0 0 1 0 0 0 1 0\n"
             "# # Times series of translational and angular velocities)\n")
-    import csv
-    writer = csv.writer(file, delimiter=' ')
-    file.write("# ")
-    writer.writerow(demInputs.keys())
-    writer.writerows(rows)
+    dictionaryToCSV(demInputs, file)
     file.close()
 
 # End of file

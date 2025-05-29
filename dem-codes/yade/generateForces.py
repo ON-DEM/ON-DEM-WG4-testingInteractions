@@ -67,10 +67,18 @@ O.engines = [
 
 # --- Set up plotting ---
 plot.plots = {'t': ('f1x',)}
-plot.plot()
+
 O.dt=1
 
 ## --- Run simulation and save ---
 O.run(len(velocity_data), True)
-plot.saveDataTxt(outputFile)
+
+import csv
+file = open(outputFile, mode='w', newline='', encoding='utf-8')
+writer = csv.writer(file, delimiter=' ')
+writer.writerow(plot.data.keys())
+writer.writerows(zip(*plot.data.values()))
+file.close()
+
+plot.plot()
 plt.savefig(baseName+".png")

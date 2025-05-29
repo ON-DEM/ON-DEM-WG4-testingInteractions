@@ -1,4 +1,4 @@
-# Danny van der Haven, dannyvdhaven@gmail.com
+# Copyright 2025: Danny van der Haven, dannyvdhaven@gmail.com
 
 import numpy as np
 from scipy.spatial.transform import Rotation

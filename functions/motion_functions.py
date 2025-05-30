@@ -121,14 +121,16 @@ def my_simulate_motion(
 
         # Compute branch magnitude
         if zero_k:
-            mag = norm_l0 + A*ti + (B/w) * (np.cos(w * ti + phi) - 1)
+            mag = norm_l0 + A*ti - (B/w) * (np.cos(phi) - np.cos(w * ti + phi))
         else:
             mag = (norm_l0
                    + A * ti
-                   + (B * w) / denom
                    - (B / denom) 
-                   * (w * np.cos(w * ti + phi) - k * np.sin(w * ti + phi))
-                   * np.exp(k * ti)
+                   * (
+                       ( k * np.sin(w * ti + phi) + w * np.cos(w * ti + phi) ) 
+                       * np.exp(k * ti)
+                       - ( k * np.sin(phi) - w * np.cos(phi) )
+                   )
                   )
         # Branch vector
         l_ij[idx] = mag * n_ij[idx]

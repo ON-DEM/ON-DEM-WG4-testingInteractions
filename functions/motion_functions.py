@@ -76,7 +76,7 @@ def my_simulate_motion(
     if x_b.shape != (3,) or v_b.shape != (3,) or omega_b.shape != (3,):
         raise ValueError("Inputs x_b, v_b, omega_b must be 3-vectors.")
     if len(init_q_i) != 4 or len(init_q_j) != 4:
-        raise ValueError("Inputs init_quat_i and init_quat_j must be 4-vectors.")
+        raise ValueError("Inputs init_q_i and init_q_j must be 4-vectors.")
     if l0.shape != (3,):
         raise ValueError("Initial branch vector l0 must be a 3-vector.")
     if n_r.shape != (3,) or n_s.shape != (3,):
@@ -167,7 +167,7 @@ def my_simulate_motion(
         't': t.reshape(-1,1),'dt':[dt]*len(t),
         'x_i': x_i, 'x_j': x_j,
         'v_i': v_i, 'v_j': v_j,
-        'quat_i': q_i, 'quat_j': q_j,
+        'q_i': q_i, 'q_j': q_j,
         'omega_i': omega_i, 'omega_j': omega_j,
         'n_ij': n_ij, 'v_ijn': v_ijn, 'l_ij': l_ij,
         'omega_b': [omega_b]*len(t)

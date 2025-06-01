@@ -24,7 +24,7 @@ def my_simulate_contact(motions, contact_params, Fn_func, Ft_func):
             't'      : (N,1) time array
             'x_i','x_j' : (N,3) position arrays
             'v_i','v_j' : (N,3) velocity arrays
-            'quat_i','quat_j' : (N,4) orientation quaternions
+            'q_i','q_j' : (N,4) orientation quaternions
             'omega_i','omega_j': (N,3) angular vel arrays
             'n_ij'   : (N,3) contact normals
             'v_ijn'  : (N,3) normal component of rel vel

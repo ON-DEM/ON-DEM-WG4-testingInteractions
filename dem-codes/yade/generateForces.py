@@ -63,7 +63,7 @@ O.engines = [
 		[Ip2_FrictMat_FrictMat_FrictPhys()],
 		[Law2_ScGeom_FrictPhys_CundallStrack()]
 	),
-	PyRunner(command='saveData(); print(O.bodies[1].state.pos)', initRun=True, iterPeriod=1),
+	PyRunner(command='saveData()', initRun=True, iterPeriod=1),
 	NewtonIntegrator(gravity=(0, 0, 0), damping=0)
 ]
 
@@ -83,5 +83,5 @@ writer.writerow(plot.data.keys())
 writer.writerows(zip(*plot.data.values()))
 file.close()
 
-plot.plot()
-plt.savefig(baseName+".png")
+# plot.plot()
+# plt.savefig(baseName+".png")

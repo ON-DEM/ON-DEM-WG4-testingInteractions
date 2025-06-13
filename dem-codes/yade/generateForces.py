@@ -77,6 +77,7 @@ O.run(len(velocity_data), True)
 
 import csv
 file = open(outputFile, mode='w', newline='', encoding='utf-8')
+file.write('# ')
 writer = csv.writer(file, delimiter=' ')
 writer.writerow(plot.data.keys())
 writer.writerows(zip(*plot.data.values()))

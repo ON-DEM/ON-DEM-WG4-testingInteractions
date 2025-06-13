@@ -61,6 +61,46 @@ plt.legend()
 plt.show(block=False)
 
 dictionaryToCSV(results, open('simulatedTestPath.txt', 'w'))
+
+import json
+
+def make_json_serializable(obj):
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [make_json_serializable(i) for i in obj]
+    else:
+        return obj
+
+def dict_to_json(_dict_, filename):
+    json.dump(make_json_serializable(_dict_), open(filename, 'w'))
+
+def json_to_dict(filename):
+    def to_ndarray(obj):
+        if isinstance(obj, list):
+            # Recursively convert lists of lists to arrays
+            if obj and isinstance(obj[0], list):
+                return np.array(obj)
+            # 1D arrays
+            elif obj and isinstance(obj[0], (int, float)):
+                return np.array(obj)
+            else:
+                return [to_ndarray(i) for i in obj]
+        elif isinstance(obj, dict):
+            return {k: to_ndarray(v) for k, v in obj.items()}
+        else:
+            return obj
+
+    with open(filename, 'r') as f:
+        data = json.load(f)
+    return to_ndarray(data)
+
+dict_to_json(results,'theoreticalResult.json')
+
+demInputs = {k: results[k] for k in ['t', 'v_i', 'v_j', 'omega_i', 'omega_j']}
+dict_to_json(demInputs,'demInput.json')
 writeDemInput(results, 'demInput.txt')
 # End of file
 

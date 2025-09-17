@@ -54,7 +54,7 @@ def my_simulate_contact(motions, contact_params, Fn_func, Ft_func):
     # Compute normal overlap
     l_ij = motions['l_ij']           # (N,3) center distance vectors
     l_mag = np.linalg.norm(l_ij, axis=1)
-    u_n = (R_i + R_j - l_mag).reshape(-1,1)
+    u_n = (R_i + R_j - l_mag).reshape(-1,1) # Surface-to-surface across entire contact
     u_n = np.maximum(u_n, 0.0)
     motions['u_n'] = u_n
 
@@ -74,7 +74,7 @@ def my_simulate_contact(motions, contact_params, Fn_func, Ft_func):
     # Compute torque: T_i = r_i * (n_ij_i × F_i)
     n_ij = motions['n_ij']
     # Determine lever arm r per contact
-    r_i = R_i - u_n
+    r_i = R_i - u_n # should be 0.5*u_n to end up at contact point
     r_j = R_j - u_n
     cross_nF_i = np.cross(n_ij, F_i)
     cross_nF_j = np.cross(-n_ij, F_j)
@@ -119,13 +119,13 @@ def my_integrate_shear_displacement(contact_params, motions):
     u_t : ndarray, shape (N, 3)
         Shear displacement vectors over each time step dt.
     """
-    n      = np.array(motions['n_ij'],    dtype=float)
+    n       = np.array(motions['n_ij'], dtype=float)
     omega_i = np.array(motions['omega_i'], dtype=float)
     omega_j = np.array(motions['omega_j'], dtype=float)
     omega_b = np.asarray(motions['omega_b'], dtype=float)
     dt      = np.array(motions['dt'], dtype=float)
-    R_i      = contact_params['R_i']
-    R_j      = contact_params['R_j']
+    R_i     = contact_params['R_i']
+    R_j     = contact_params['R_j']
 
     # Instantaneous shear velocity at each time
     v_t = R_i * np.cross(omega_i - omega_b, n, axis=1) + \
@@ -133,6 +133,8 @@ def my_integrate_shear_displacement(contact_params, motions):
 
     # Shear displacement per time step
     u_t = v_t * dt[:,None]
+
+    # v_t and u_t should be zero if u_n < 0 !!! 
 
     return v_t, u_t
 

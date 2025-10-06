@@ -36,9 +36,7 @@ def my_simulate_motion(
     l0 : (3,) vector
         Initial branch vector.
     n_r, n_s : (3,) vectors
-        Roll and shear direction unit vectors (orthogonal to initial branch).
-    omega_t_func, omega_r_func, omega_s_func : callables t->scalar
-        Time-dependent twist, roll, and shear magnitudes.
+        Roll and shear direction unit vectors (must be orthogonal to initial branch).
     t_end, dt : scalars
         Simulation end time and time step.
 
@@ -218,7 +216,7 @@ def my_integrate_rotation(initial_quat, omega, dt):
     return quats
 
 
-def writeDemInput(results,filename='dem_input.txt'):
+def write_DEM_input(results,filename='dem_input.txt'):
     """
     Write the DEM inputs to a file. The input can a dictionnary produced by my_simulate_motion or my_simulate_contact.
     The file will contain the time series of translational and angular velocities
@@ -227,10 +225,11 @@ def writeDemInput(results,filename='dem_input.txt'):
     demInputs = {k: results[k] for k in ['t', 'v_i', 'v_j', 'omega_i', 'omega_j']}
 
     file = open('test_results.txt', 'w')
+    # Should be able to take out x_i at t0 for init positions.
     file.write("# initial position/orientation as X1,R1,X2,R2,Q1,Q2 (vector/quaternion)\n"
             "# init: 0 0 0 1 2 0 0 1 0 0 1 0 0 0 1 0\n"
             "# # Times series of translational and angular velocities)\n")
-    dictionaryToCSV(demInputs, file)
+    dict_to_csv(demInputs, file)
     file.close()
 
 # End of file

@@ -1,5 +1,7 @@
 import numpy as np
 import csv
+import json
+
 
 def flatten_for_csv(arr):
     arr = np.asarray(arr)
@@ -10,10 +12,9 @@ def flatten_for_csv(arr):
     return arr.reshape(arr.shape[0], -1)  # 2D or more
 
 
-def dictionaryToCSV(dictionary,file):
+def dict_to_csv(dictionary,file):
     data = [flatten_for_csv(dictionary[k]) for k in dictionary]
     rows = np.hstack(data)
-    import csv
     writer = csv.writer(file, delimiter=' ')
     file.write("# ")
     writer.writerow(dictionary.keys())
@@ -47,14 +48,10 @@ def load_grouped_csv(filename, groups=myGroups):
         result[group_name] = data[:, idxs]
     return result
 
-# Example usage:
+    # Example usage:
+    #data_dict = load_grouped_csv('test_results.out')
+    # Now data_dict['pos1'] is an (N,3) array, etc.
 
-
-data_dict = load_grouped_csv('test_results.out')
-# Now data_dict['pos1'] is an (N,3) array, etc.
-
-
-import json
 
 def make_json_serializable(obj):
     if isinstance(obj, np.ndarray):

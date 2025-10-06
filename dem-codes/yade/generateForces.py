@@ -1,7 +1,7 @@
 # Copyright 2025: Bruno Chareyre <bruno.chareyre@grenoble-inp.fr>
 # Execution: "yade generateForces.py input.txt", where "input.txt" is a time series of velocities
 
-from yade import pack, plot, sys, os
+from yade import plot, sys, os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -17,12 +17,12 @@ else:
 velocity_data = np.loadtxt(inputFile, comments='#')  # shape (N, 7)
 
 # --- Initialize simulation scene ---
-sphere1 = sphere(center=(0, 0, 0), radius=1, fixed=True)
-sphere2 = sphere(center=(2, 0, 0), radius=1, fixed=True)
+sphere1 = sphere(center=(0, 0, 0), radius=1.0, fixed=True)
+sphere2 = sphere(center=(2, 0, 0), radius=1.0, fixed=True)
 O.bodies.append([sphere1, sphere2])
 
 # Add a dummy material
-O.materials.append(FrictMat(young=1e7, poisson=0.3, frictionAngle=0.5))
+O.materials.append(FrictMat(young=1.0e7, poisson=0.5, frictionAngle=atan(0.5)))
 
 # --- Time stepping logic ---
 current_index = 0

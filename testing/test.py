@@ -6,28 +6,87 @@ sys.path.append('../functions')
 from motion_functions import *
 from contact_functions import *
 from contact_laws import *
+from helpers import *
 
+# Which test to run?
+testID = 4
 
 # Generate velocities and motion profile
 R = 1.0
-motion = my_simulate_motion(
-    [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
-    [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
-    0, R/2, 1, np.pi, 0.05, [2*R,0.0,0.0], # normal loading, initial branch
-    0, 0, 0, 0, 0, # twist
-    0, 0, 0, 0, 0, # roll
-    0, 0, 0, 0, 0, # shear
-    [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
-    6*np.pi, 6*np.pi/200 # time
-)
+if testID == 1:
+    # Tangential elastic response
+    motion = my_simulate_motion(
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
+        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
+        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0, 0.02*R, 1, 0, 0, # shear
+        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        6*np.pi, 6*np.pi/200 # time
+    )
+elif testID == 2:
+    # Tangential plastic response
+    motion = my_simulate_motion(
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
+        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
+        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0, 0.05*R, 1, 0, 0, # shear
+        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        6*np.pi, 6*np.pi/200 # time
+    )
+elif testID == 3:
+    # Out-of-plane tangent force rotation
+    motion = my_simulate_motion(
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,2.0], # initial pos, vel, ang vel
+        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
+        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0.02*R, 0, 1, 0, 0, # shear
+        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        6*np.pi, 6*np.pi/200 # time
+    )
+elif testID == 4:
+    # In-plane tangent force rotation
+    motion = my_simulate_motion(
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[2.0,0.0,0.0], # initial pos, vel, ang vel
+        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
+        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0.02*R, 0, 1, 0, 0, # shear
+        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        6*np.pi, 6*np.pi/200 # time
+    )
+elif testID == 5:
+    # Purely repulsive viscous forces
+    motion = my_simulate_motion(
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
+        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
+        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0.02*R, 0, 1, 0, 0, # shear
+        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        6*np.pi, 6*np.pi/200 # time
+    )
+elif testID == 6:
+    # Shear displacement calculated with surface arm
+elif testID == 7:
+    #
+ 
+# Make phase pi to start with approach
 
 
 # Simulate contact interaction
-contact_params = {'k_n':100, 
-                  'k_t':50, 
-                  'mu':0.5, 
-                  'R_i': R,
-                  'R_j': R}
+contact_params = {'k_n':    1.0e7, 
+                  'k_t':    0.5e7, 
+                  'mu':     0.5, 
+                  'R_i':    R,
+                  'R_j':    R}
 
 results = my_simulate_contact(
     motion,
@@ -47,61 +106,49 @@ plt.xlabel('Time')
 plt.ylabel('Position or velocity')
 plt.legend()
 plt.show(block=False)
-plt.savefig('test_plot.png')
+plt.savefig('test_plot_pos.png')
 
-# Plotting forces and torques
+# Plotting forces and torques x
 plt.figure(1)
 plt.plot(results['t'], results['F_i'][:,0],'r', label='F_i')
 plt.plot(results['t'], results['F_j'][:,0],'b', label='F_j')
 plt.plot(results['t'], results['T_i'][:,0],'r--', label='T_i')
 plt.plot(results['t'], results['T_j'][:,0],'b--', label='T_j')
 plt.xlabel('Time')
-plt.ylabel('Force or torque')
+plt.ylabel('Force or torque x')
 plt.legend()
 plt.show(block=False)
+plt.savefig('test_plot_force_x.png')
 
-dictionaryToCSV(results, open('simulatedTestPath.txt', 'w'))
+# Plotting forces and torques y
+plt.figure(2)
+plt.plot(results['t'], results['F_i'][:,1],'r', label='F_i')
+plt.plot(results['t'], results['F_j'][:,1],'b', label='F_j')
+plt.plot(results['t'], results['T_i'][:,1],'r--', label='T_i')
+plt.plot(results['t'], results['T_j'][:,1],'b--', label='T_j')
+plt.xlabel('Time')
+plt.ylabel('Force or torque y')
+plt.legend()
+plt.show(block=False)
+plt.savefig('test_plot_force_y.png')
 
-import json
+# Plotting forces and torques z
+plt.figure(3)
+plt.plot(results['t'], results['F_i'][:,2],'r', label='F_i')
+plt.plot(results['t'], results['F_j'][:,2],'b', label='F_j')
+plt.plot(results['t'], results['T_i'][:,2],'r--', label='T_i')
+plt.plot(results['t'], results['T_j'][:,2],'b--', label='T_j')
+plt.xlabel('Time')
+plt.ylabel('Force or torque z')
+plt.legend()
+plt.show(block=False)
+plt.savefig('test_plot_force_z.png')
 
-def make_json_serializable(obj):
-    if isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif isinstance(obj, dict):
-        return {k: make_json_serializable(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [make_json_serializable(i) for i in obj]
-    else:
-        return obj
-
-def dict_to_json(_dict_, filename):
-    json.dump(make_json_serializable(_dict_), open(filename, 'w'))
-
-def json_to_dict(filename):
-    def to_ndarray(obj):
-        if isinstance(obj, list):
-            # Recursively convert lists of lists to arrays
-            if obj and isinstance(obj[0], list):
-                return np.array(obj)
-            # 1D arrays
-            elif obj and isinstance(obj[0], (int, float)):
-                return np.array(obj)
-            else:
-                return [to_ndarray(i) for i in obj]
-        elif isinstance(obj, dict):
-            return {k: to_ndarray(v) for k, v in obj.items()}
-        else:
-            return obj
-
-    with open(filename, 'r') as f:
-        data = json.load(f)
-    return to_ndarray(data)
-
-dict_to_json(results,'theoreticalResult.json')
+dict_to_json(results,'theoretical_output.json')
+dict_to_csv(results, open('theoretical_output.csv', 'w'))
 
 demInputs = {k: results[k] for k in ['t', 'v_i', 'v_j', 'omega_i', 'omega_j']}
-dict_to_json(demInputs,'demInput.json')
-writeDemInput(results, 'demInput.txt')
+dict_to_json(demInputs,'dem_input.json')
+write_DEM_input(results, 'dem_input.csv')
+
 # End of file
-
-

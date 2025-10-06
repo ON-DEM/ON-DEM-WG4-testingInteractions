@@ -109,8 +109,9 @@ def my_integrate_shear_displacement(contact_params, motions):
             'n_ij'      : (N,3) contact normal vectors at each time step
             'omega_i'   : (N,3) angular velocity vectors of particle i
             'omega_j'   : (N,3) angular velocity vectors of particle j
-            'omega_b'   : (3,)  constant rigid-body angular velocity vector
-            'dt'        : float  time step size
+            'omega_b'   : (3,) constant rigid-body angular velocity vector
+            'dt'        : (1) float time step size
+            'u_n'       : (N,1) the normal overlap distance
 
     Returns
     -------
@@ -124,17 +125,32 @@ def my_integrate_shear_displacement(contact_params, motions):
     omega_j = np.array(motions['omega_j'], dtype=float)
     omega_b = np.asarray(motions['omega_b'], dtype=float)
     dt      = np.array(motions['dt'], dtype=float)
+    u_n     = np.asarray(motions['u_n'], dtype=float)
     R_i     = contact_params['R_i']
     R_j     = contact_params['R_j']
 
     # Instantaneous shear velocity at each time
     v_t = R_i * np.cross(omega_i - omega_b, n, axis=1) + \
           R_j * np.cross(omega_j - omega_b, n, axis=1)
+    # Set to zero if no contact
+    mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
+    v_t[mask, :] = 0.0
+    
+    # Shear displacement increment per time step
+    du_t = v_t * dt[:,None]
 
-    # Shear displacement per time step
-    u_t = v_t * dt[:,None]
-
-    # v_t and u_t should be zero if u_n < 0 !!! 
+    # Accumulated shear displacement
+    N, dim = du_t.shape
+    u_t = np.zeros((N,dim))
+    acc = np.zeros(3)
+    for i in range(N):
+        # Displacement is lost if contact is lost
+        if mask[i]:
+            acc[:] = 0.0
+            u_t[i] = 0.0
+        else:
+            acc += du_t[i]
+            u_t[i] = acc.copy()   # copy to avoid aliasing
 
     return v_t, u_t
 

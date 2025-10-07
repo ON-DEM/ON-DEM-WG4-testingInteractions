@@ -106,6 +106,7 @@ def my_simulate_motion(
     # Precompute constants
     denom = w**2 + k**2
     zero_k = np.isclose(k, 0)
+    zero_w = np.isclose(w, 0)
 
     for idx, ti in enumerate(t):
         # Body rotation, this works because omega_b is constant.
@@ -118,8 +119,12 @@ def my_simulate_motion(
         v_ijn[idx] = A - B * np.sin(w * ti + phi) * np.exp(k * ti) * n_ij[idx]
 
         # Compute branch magnitude
-        if zero_k:
-            mag = norm_l0 + A*ti - (B/w) * (np.cos(phi) - np.cos(w * ti + phi))
+        if zero_k and zero_w:
+            mag = norm_l0 + A * ti - B * ti * np.sin(phi)
+        elif zero_k:
+            mag = norm_l0 + A * ti - (B/w) * (np.cos(phi) - np.cos(w * ti + phi))
+        elif zero_w:
+            mag = norm_l0 + A * ti - (B / k) * np.sin(phi) * (np.exp(k * ti) - 1.0)
         else:
             mag = (norm_l0
                    + A * ti

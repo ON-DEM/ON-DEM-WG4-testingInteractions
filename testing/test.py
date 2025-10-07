@@ -16,49 +16,49 @@ R = 1.0
 if testID == 1:
     # Tangential elastic response
     motion = my_simulate_motion(
-        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
-        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
-        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        [0,0,0],[0,0,0],[0,0,0], # initial pos, vel, ang vel
+        [1.0,0,0,0], [1.0,0,0,0], # initial ori
+        0, 0, 0, 0, 0, [0,0,1.95*R], # normal loading, initial branch
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
-        0, 0.02*R, 1, 0, 0, # shear
-        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        0, 0.02*R, 1.0, 0, 0, # shear
+        [1.0,0,0], [0,1.0,0], # roll and shear axes
         6*np.pi, 6*np.pi/200 # time
     )
 elif testID == 2:
     # Tangential plastic response
     motion = my_simulate_motion(
-        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
-        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
-        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        [0,0,0],[0,0,0],[0,0,0], # initial pos, vel, ang vel
+        [1.0,0,0,0], [1.0,0,0,0], # initial ori
+        0, 0, 0, 0, 0, [0,0,1.95*R], # normal loading, initial branch
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
-        0, 0.05*R, 1, 0, 0, # shear
-        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        0, 0.08*R, 1.0, 0, 0, # shear
+        [1.0,0,0], [0,1.0,0], # roll and shear axes
         6*np.pi, 6*np.pi/200 # time
     )
 elif testID == 3:
     # Out-of-plane tangent force rotation
     motion = my_simulate_motion(
-        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,2.0], # initial pos, vel, ang vel
-        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
-        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        [0,0,0],[0,0,0],[0,1.0,0], # initial pos, vel, ang vel
+        [1.0,0,0,0], [1.0,0,0,0], # initial ori
+        0, 0, 0, 0, 0, [0,0,1.95*R], # normal loading, initial branch
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
-        0.02*R, 0, 1, 0, 0, # shear
-        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        0.02*R, 0, 0, 0, 0, # shear
+        [1.0,0,0], [0,1.0,0], # roll and shear axes
         6*np.pi, 6*np.pi/200 # time
     )
 elif testID == 4:
     # In-plane tangent force rotation
     motion = my_simulate_motion(
-        [0.0,0.0,0.0],[0.0,0.0,0.0],[2.0,0.0,0.0], # initial pos, vel, ang vel
-        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
-        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        [0,0,0],[0,0,0],[0,0,1.0], # initial pos, vel, ang vel
+        [1.0,0,0,0], [1.0,0,0,0], # initial ori
+        0, 0, 0, 0, 0, [0,0,1.95*R], # normal loading, initial branch
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
-        0.02*R, 0, 1, 0, 0, # shear
-        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        0.02*R, 0, 0, 0, 0, # shear
+        [1.0,0,0], [0,1.0,0], # roll and shear axes
         6*np.pi, 6*np.pi/200 # time
     )
 elif testID == 5:
@@ -75,9 +75,29 @@ elif testID == 5:
     )
 elif testID == 6:
     # Shear displacement calculated with surface arm
+    motion = my_simulate_motion(
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
+        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
+        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0.02*R, 0, 1, 0, 0, # shear
+        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        6*np.pi, 6*np.pi/200 # time
+    )
 elif testID == 7:
-    #
- 
+    # Do nothing
+    motion = my_simulate_motion(
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
+        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
+        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0.02*R, 0, 1, 0, 0, # shear
+        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        6*np.pi, 6*np.pi/200 # time
+    )
+
 # Make phase pi to start with approach
 
 
@@ -116,6 +136,7 @@ plt.plot(results['t'], results['T_i'][:,0],'r--', label='T_i')
 plt.plot(results['t'], results['T_j'][:,0],'b--', label='T_j')
 plt.xlabel('Time')
 plt.ylabel('Force or torque x')
+plt.ticklabel_format(axis='both', style='sci', scilimits=(0,0))
 plt.legend()
 plt.show(block=False)
 plt.savefig('test_plot_force_x.png')
@@ -128,6 +149,7 @@ plt.plot(results['t'], results['T_i'][:,1],'r--', label='T_i')
 plt.plot(results['t'], results['T_j'][:,1],'b--', label='T_j')
 plt.xlabel('Time')
 plt.ylabel('Force or torque y')
+plt.ticklabel_format(axis='both', style='sci', scilimits=(0,0))
 plt.legend()
 plt.show(block=False)
 plt.savefig('test_plot_force_y.png')
@@ -140,6 +162,7 @@ plt.plot(results['t'], results['T_i'][:,2],'r--', label='T_i')
 plt.plot(results['t'], results['T_j'][:,2],'b--', label='T_j')
 plt.xlabel('Time')
 plt.ylabel('Force or torque z')
+plt.ticklabel_format(axis='both', style='sci', scilimits=(0,0))
 plt.legend()
 plt.show(block=False)
 plt.savefig('test_plot_force_z.png')

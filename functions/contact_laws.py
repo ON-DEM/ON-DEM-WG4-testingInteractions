@@ -87,18 +87,54 @@ def Fn_viscous_veldep(contact_params, motions):
 
 def Ft_linear_Coloumb(contact_params, motions, Fn):
     """
-    Linear shear stiffness: F_t = -k_t * u_t, capped by Coulomb
+    Linear shear stiffness: F_t -= k_t * du_t, capped by Coulomb limit mu*Fn
     """
-    u_t = motions['u_t']
-    k_t = contact_params['k_t']
-    mu = contact_params['mu']
+    du_t    = np.array(motions['du_t'], dtype=float)
+    k_t     = contact_params['k_t']
+    mu      = contact_params['mu']
+    u_n    = np.array(motions['u_n'], dtype=float)
+    omega_b = np.asarray(motions['omega_b'], dtype=float)
+    dt      = np.array(motions['dt'], dtype=float)
 
-    Ft = -k_t * u_t
-    # Coulomb limit
+    # Test for contact
+    mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
+
+    # Normal force magnitudes
     Fn_mag = np.linalg.norm(Fn, axis=1)
-    Ft_mag = np.linalg.norm(Ft, axis=1)
-    slip = Ft_mag > mu * Fn_mag
-    Ft[slip] *= (mu * Fn_mag[slip] / Ft_mag[slip])[:, None]
+
+    # Accumulate shear force
+    N, dim = du_t.shape
+    Ft = np.zeros((N,dim))
+    Ft[0] = 0
+    Ft_tmp = np.zeros(3)
+    for i in range(N):
+        # Displacement is lost if contact is lost
+        if mask[i]:
+            Ft[i] = 0.0
+        else:
+            if i > 0:
+                Ft_tmp = Ft[i-1]
+            # Small-angle rotation update inside the loop
+            omega = omega_b[i]*dt[i]
+            theta = np.linalg.norm(omega)
+            if theta > 1e-12:
+                axis = omega / theta
+                # Rodrigues’ rotation formula for rotation matrix
+                K = np.array([
+                    [0, -axis[2], axis[1]],
+                    [axis[2], 0, -axis[0]],
+                    [-axis[1], axis[0], 0]
+                ])
+                R = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
+                Ft_tmp = R @ Ft_tmp
+            # Integrate increment
+            Ft_tmp -= k_t * du_t[i]
+            # Apply Coulomb limit
+            Ft_mag = np.linalg.norm(Ft_tmp)
+            if Ft_mag > mu * Fn_mag[i]:
+                Ft_tmp *= (mu * Fn_mag[i] / Ft_mag)
+            Ft[i] = Ft_tmp.copy() # copy to avoid aliasing
+
     return Ft
 
 

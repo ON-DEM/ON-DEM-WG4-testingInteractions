@@ -52,21 +52,21 @@ def my_simulate_contact(motions, contact_params, Fn_func, Ft_func):
     R_j  = contact_params['R_j']
 
     # Compute normal overlap
-    l_ij = motions['l_ij']           # (N,3) center distance vectors
+    l_ij = motions['l_ij']  # (N,3) center distance vectors
     l_mag = np.linalg.norm(l_ij, axis=1)
     u_n = (R_i + R_j - l_mag).reshape(-1,1) # Surface-to-surface across entire contact
     u_n = np.maximum(u_n, 0.0)
     motions['u_n'] = u_n
 
     # Compute shear kinematics
-    v_t, u_t = my_integrate_shear_displacement(contact_params, motions)
+    v_t, du_t = my_integrate_shear_displacement(contact_params, motions)
     motions['v_t'] = v_t
-    motions['u_t'] = u_t
+    motions['du_t'] = du_t
 
     # Compute forces via provided functions
     Fn = Fn_func(contact_params, motions)          # shape (N,3)
     Ft = Ft_func(contact_params, motions, Fn)      # shape (N,3)
-
+    
     # Total force
     F_i = Fn + Ft
     F_j = -F_i
@@ -139,20 +139,7 @@ def my_integrate_shear_displacement(contact_params, motions):
     # Shear displacement increment per time step
     du_t = v_t * dt[:,None]
 
-    # Accumulated shear displacement
-    N, dim = du_t.shape
-    u_t = np.zeros((N,dim))
-    acc = np.zeros(3)
-    for i in range(N):
-        # Displacement is lost if contact is lost
-        if mask[i]:
-            acc[:] = 0.0
-            u_t[i] = 0.0
-        else:
-            acc += du_t[i]
-            u_t[i] = acc.copy()   # copy to avoid aliasing
-
-    return v_t, u_t
+    return v_t, du_t
 
 
 

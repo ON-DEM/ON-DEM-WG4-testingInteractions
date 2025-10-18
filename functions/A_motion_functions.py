@@ -2,7 +2,7 @@
 
 import numpy as np
 from scipy.spatial.transform import Rotation
-from helpers import *
+from D_helpers import *
 
 #
 #   SIMULATE MOTION OF TWO PARTICLES
@@ -16,7 +16,8 @@ def my_simulate_motion(
     A_r, B_r, w_r, phi_r, k_r,
     A_s, B_s, w_s, phi_s, k_s,
     n_r, n_s,
-    t_end, dt
+    t_end, dt,
+    R_i, R_j
 ):
     """
     Simulate relative motions under combined twist, roll, and shear.
@@ -39,6 +40,8 @@ def my_simulate_motion(
         Roll and shear direction unit vectors (must be orthogonal to initial branch).
     t_end, dt : scalars
         Simulation end time and time step.
+    R_i, R_j : scalars
+        Radii of the two particles (needed to proprely assing angular velocities).
 
     Returns
     -------
@@ -62,6 +65,8 @@ def my_simulate_motion(
     # Scalar validations
     if dt <= 0 or t_end <= 0:
         raise ValueError("Scalars dt and t_end must be positive.")
+    if R_i <= 0 or R_j <= 0:
+        raise ValueError("Scalars R_i and R_j must be positive.")
     if not np.isscalar(A) or not np.isscalar(B) or not np.isscalar(w) or not np.isscalar(phi) or not np.isscalar(k):
         raise ValueError("Parameters A, B, w, phi, and k must be scalars.")
     if not np.isscalar(A_t) or not np.isscalar(B_t) or not np.isscalar(w_t) or not np.isscalar(phi_t) or not np.isscalar(k_t):
@@ -84,6 +89,7 @@ def my_simulate_motion(
     norm_l0 = np.linalg.norm(l0)
     if np.isclose(norm_l0, 0):
         raise ValueError("Initial branch vector must be non-zero.")
+    # We assume spheres, so unit branch vector is contact normal
     n0 = l0 / norm_l0
 
     # Orthogonality checks
@@ -102,6 +108,9 @@ def my_simulate_motion(
     omega_i = np.zeros((N,3)); omega_j = np.zeros((N,3))
     n_ij = np.zeros((N,3)); v_ijn = np.zeros((N,3))
     l_ij = np.zeros((N,3))
+    u_n = np.zeros((N,1))
+    v_theta = np.zeros((N,3)); 
+    v_r = np.zeros((N,3)); v_s = np.zeros((N,3))
 
     # Precompute constants
     denom = w**2 + k**2
@@ -155,13 +164,24 @@ def my_simulate_motion(
         nr_s = Rb.apply(n_s)
         omega_i[idx] = (omega_b
                         + 0.5 * omegar_t * n_ij[idx]
-                        + 0.5 * omegar_r * nr_r
-                        + 0.5 * omegar_s * nr_s)
+                        + 1/R_i * omegar_r * nr_r
+                        + 1/R_i * omegar_s * nr_s)
         omega_j[idx] = (omega_b
                         - 0.5 * omegar_t * n_ij[idx]
-                        - 0.5 * omegar_r * nr_r
-                        + 0.5 * omegar_s * nr_s)
+                        - 1/R_j * omegar_r * nr_r
+                        + 1/R_j * omegar_s * nr_s)
+        
+        # Twist, roll, and shear velocities
+        v_theta[idx] = omegar_t * n_ij[idx]
+        v_r[idx] = omegar_r * np.cross(n_r, n_ij[idx])
+        v_s[idx] = omegar_s * np.cross(n_s, n_ij[idx])
+    
+    # Compute normal overlap
+    l_mag = np.linalg.norm(l_ij, axis=1)
+    u_n = (R_i + R_j - l_mag).reshape(-1,1) # Surface-to-surface across entire contact
+    u_n = np.maximum(u_n, 0.0)
 
+    # Compute orientation
     q_i =  my_integrate_rotation(init_q_i, omega_i, dt)
     q_j =  my_integrate_rotation(init_q_j, omega_j, dt)
 
@@ -171,13 +191,11 @@ def my_simulate_motion(
         'x_i': x_i, 'x_j': x_j,
         'v_i': v_i, 'v_j': v_j,
         'q_i': q_i, 'q_j': q_j,
-        'omega_i': omega_i, 'omega_j': omega_j,
+        'omega_i': omega_i, 'omega_j': omega_j, 'omega_b': [omega_b]*len(t),
         'n_ij': n_ij, 'v_ijn': v_ijn, 'l_ij': l_ij,
-        'omega_b': [omega_b]*len(t)
+        'u_n': u_n, 'v_s': v_s, 'v_r': v_r, 'v_theta': v_theta
     }
     return motions
-
-
 
 def my_integrate_rotation(initial_quat, omega, dt):
     """
@@ -216,20 +234,18 @@ def my_integrate_rotation(initial_quat, omega, dt):
         # Update orientation by quaternion multiplication
         orientation = orientation * delta_rot
         # Store new quaternion
-        quats[i + 1] = orientation.as_quat()
+        quats[i + 1] = (orientation.as_quat()).copy()
     
     return quats
-
 
 def write_DEM_input(results,filename='dem_input.txt'):
     """
     Write the DEM inputs to a file. The input can a dictionnary produced by my_simulate_motion or my_simulate_contact.
     The file will contain the time series of translational and angular velocities
     """
- 
     demInputs = {k: results[k] for k in ['t', 'v_i', 'v_j', 'omega_i', 'omega_j']}
 
-    file = open('test_results.txt', 'w')
+    file = open(filename, 'w')
     # Should be able to take out x_i at t0 for init positions.
     file.write("# initial position/orientation as X1,R1,X2,R2,Q1,Q2 (vector/quaternion)\n"
             "# init: 0 0 0 1 2 0 0 1 0 0 1 0 0 0 1 0\n"

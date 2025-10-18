@@ -1,7 +1,12 @@
+# Copyright 2025: Bruno Chareyre, bruno.chareyre@3sr-grenoble.fr
+
 import numpy as np
 import csv
 import json
 
+#
+#   CSV and DICT functions
+#
 
 def flatten_for_csv(arr):
     arr = np.asarray(arr)
@@ -10,7 +15,6 @@ def flatten_for_csv(arr):
     if arr.ndim == 1:
         return arr[:, None]            # 1D to (N,1)
     return arr.reshape(arr.shape[0], -1)  # 2D or more
-
 
 def dict_to_csv(dictionary,file):
     data = [flatten_for_csv(dictionary[k]) for k in dictionary]
@@ -33,6 +37,10 @@ myGroups = {
 }
 
 def load_grouped_csv(filename, groups=myGroups):
+    # Example usage:
+    #data_dict = load_grouped_csv('test_results.out')
+    # Now data_dict['pos1'] is an (N,3) array, etc.
+
     # Read CSV header and data
     with open(filename, 'r') as f:
         reader = csv.reader(f, delimiter=' ')
@@ -48,10 +56,9 @@ def load_grouped_csv(filename, groups=myGroups):
         result[group_name] = data[:, idxs]
     return result
 
-    # Example usage:
-    #data_dict = load_grouped_csv('test_results.out')
-    # Now data_dict['pos1'] is an (N,3) array, etc.
-
+#
+#   JSON and DICT functions
+#
 
 def make_json_serializable(obj):
     if isinstance(obj, np.ndarray):
@@ -85,3 +92,5 @@ def json_to_dict(filename):
     with open(filename, 'r') as f:
         data = json.load(f)
     return to_ndarray(data)
+
+# End of file

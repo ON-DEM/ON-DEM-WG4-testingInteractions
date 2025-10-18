@@ -89,12 +89,15 @@ def Ft_linear_Coloumb(contact_params, motions, Fn):
     """
     Linear shear stiffness: F_t -= k_t * du_t, capped by Coulomb limit mu*Fn
     """
-    du_t    = np.array(motions['du_t'], dtype=float)
+    v_s    = np.array(motions['v_s'], dtype=float)
     k_t     = contact_params['k_t']
     mu      = contact_params['mu']
     u_n    = np.array(motions['u_n'], dtype=float)
     omega_b = np.asarray(motions['omega_b'], dtype=float)
     dt      = np.array(motions['dt'], dtype=float)
+
+    # Shear displacement increment per time step
+    du_s = v_s * dt[:,None]
 
     # Test for contact
     mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
@@ -103,17 +106,18 @@ def Ft_linear_Coloumb(contact_params, motions, Fn):
     Fn_mag = np.linalg.norm(Fn, axis=1)
 
     # Accumulate shear force
-    N, dim = du_t.shape
+    N, dim = du_s.shape
     Ft = np.zeros((N,dim))
     Ft[0] = 0
     Ft_tmp = np.zeros(3)
     for i in range(N):
-        # Displacement is lost if contact is lost
+        # Shear force and displacement is lost if contact is lost
         if mask[i]:
             Ft[i] = 0.0
         else:
             if i > 0:
                 Ft_tmp = Ft[i-1]
+
             # Small-angle rotation update inside the loop
             omega = omega_b[i]*dt[i]
             theta = np.linalg.norm(omega)
@@ -127,8 +131,9 @@ def Ft_linear_Coloumb(contact_params, motions, Fn):
                 ])
                 R = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
                 Ft_tmp = R @ Ft_tmp
+
             # Integrate increment
-            Ft_tmp -= k_t * du_t[i]
+            Ft_tmp -= k_t * du_s[i]
             # Apply Coulomb limit
             Ft_mag = np.linalg.norm(Ft_tmp)
             if Ft_mag > mu * Fn_mag[i]:
@@ -258,5 +263,53 @@ def Ft_viscous_veldep(contact_params, motions):
     # viscous tangential force
     Ft_visc = - eta_t * v_t
     return Ft_visc
+
+
+#
+#   Mixing rules for mechanical contact properties
+#
+
+def my_compute_effective_params(contact_params):
+    """
+    Compute effective contact parameters for two particles from contact_params dict:
+      - E* effective normal modulus
+      - G* effective shear modulus
+      - R* effective radius
+      - m* effective mass
+
+    Expects keys: 'E_i','nu_i','E_j','nu_j','R_i','R_j' (optional 'G_i','G_j','m_i,'m_j').
+    """
+    E_i, nu_i = contact_params['E_i'], contact_params['nu_i']
+    E_j, nu_j = contact_params['E_j'], contact_params['nu_j']
+    R_i, R_j = contact_params['R_i'], contact_params['R_j']
+    G_i = contact_params.get('G_i', None)
+    G_j = contact_params.get('G_j', None)
+    m_i = contact_params.get('m_i',None)
+    m_j = contact_params.get('m_j',None)
+
+    # Effective normal modulus
+    inv_E_star = (1 - nu_i**2) / E_i + (1 - nu_j**2) / E_j
+    E_star = 1.0 / inv_E_star
+
+    # Determine shear moduli
+    if G_i is None:
+        G_i = E_i / (2.0 * (1.0 + nu_i))
+    if G_j is None:
+        G_j = E_j / (2.0 * (1.0 + nu_j))
+
+    # Effective shear modulus
+    inv_G_star = (2.0 - nu_i) / G_i + (2.0 - nu_j) / G_j
+    G_star = 1.0 / inv_G_star
+
+    # Effective radius
+    R_star = (R_i * R_j) / (R_i + R_j)
+
+    # Effective mass
+    if (m_i is not None) and (m_j is not None):
+        m_star = (m_i * m_j) / (m_i + m_j)
+    else:
+        m_star = 1
+
+    return E_star, G_star, R_star, m_star
 
 # End of file

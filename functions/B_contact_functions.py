@@ -6,7 +6,7 @@ import numpy as np
 #   SIMULATE THE CONTACT INTERACTION
 #
 
-def my_simulate_contact(motions, contact_params, Fn_func, Ft_func):
+def my_simulate_contact(motions, contact_params, Fn_func, Fs_func=None, Fr_func=None, Tt_func=None):
     """
     Generalised contact force batch processor.
 
@@ -51,12 +51,27 @@ def my_simulate_contact(motions, contact_params, Fn_func, Ft_func):
     R_i  = contact_params['R_i']
     R_j  = contact_params['R_j']
 
-    # Compute forces via provided functions
-    Fn = Fn_func(contact_params, motions)          # shape (N,3)
-    Ft = Ft_func(contact_params, motions, Fn)      # shape (N,3)
-    
+    # Compute forces via provided functions, shape (N,3)
+    # Normal
+    Fn = Fn_func(contact_params, motions)
+    # Shear
+    if Fs_func == None:
+        Fs = np.zeros(Fn.shape)
+    else:
+        Fs = Fs_func(contact_params, motions, Fn)
+    # Roll
+    if Fr_func == None:
+        Fr = np.zeros(Fn.shape)
+    else:
+        Fr = Fr_func(contact_params, motions, Fn)
+    # Twist
+    if Tt_func == None:
+        Tt = np.zeros(Fn.shape)
+    else:
+        Tt = Tt_func(contact_params, motions, Fn)
+
     # Total force
-    F_i = Fn + Ft
+    F_i = Fn + Fs + Fr
     F_j = -F_i
 
     # Get normal penetration
@@ -68,8 +83,8 @@ def my_simulate_contact(motions, contact_params, Fn_func, Ft_func):
     r_j = R_j - 0.5*u_n
     cross_nF_i = np.cross(n_ij, F_i)
     cross_nF_j = np.cross(-n_ij, F_j)
-    T_i = (r_i * cross_nF_i)
-    T_j = (r_j * cross_nF_j)
+    T_i = (r_i * cross_nF_i) + Tt
+    T_j = (r_j * cross_nF_j) - Tt
 
     # Package results
     result = motions.copy()

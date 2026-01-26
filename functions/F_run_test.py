@@ -16,6 +16,8 @@ testname = 'test_'+str(testID).zfill(2)
 R_i = 1.0
 R_j = 1.0
 R = (R_i + R_j)/2.0
+tmax = 6*np.pi
+dt = 6*np.pi/200
 if testID == 1:
     # Tangential elastic response
     motion = my_simulate_motion(
@@ -26,7 +28,7 @@ if testID == 1:
         0, 0, 0, 0, 0, # roll
         0, 0.02*R, 1.0, 0, 0, # shear
         [1.0,0,0], [0,1.0,0], # roll and shear axes
-        6*np.pi, 6*np.pi/200, # time
+        tmax, dt, # time
         R_i, R_j
     )
 elif testID == 2:
@@ -39,7 +41,7 @@ elif testID == 2:
         0, 0, 0, 0, 0, # roll
         0, 0.08*R, 1.0, 0, 0, # shear
         [1.0,0,0], [0,1.0,0], # roll and shear axes
-        6*np.pi, 6*np.pi/200, # time
+        tmax, dt, # time
         R_i, R_j
     )
 elif testID == 3:
@@ -52,7 +54,7 @@ elif testID == 3:
         0, 0, 0, 0, 0, # roll
         0.02*R, 0, 0, 0, 0, # shear
         [1.0,0,0], [0,1.0,0], # roll and shear axes
-        6*np.pi, 6*np.pi/200, # time
+        tmax, dt, # time
         R_i, R_j
     )
 elif testID == 4:
@@ -65,7 +67,7 @@ elif testID == 4:
         0, 0, 0, 0, 0, # roll
         0.02*R, 0, 0, 0, 0, # shear
         [1.0,0,0], [0,1.0,0], # roll and shear axes
-        6*np.pi, 6*np.pi/200, # time
+        tmax, dt, # time
         R_i, R_j
     )
 elif testID == 5:
@@ -78,7 +80,7 @@ elif testID == 5:
         0, 0, 0, 0, 0, # roll
         0.02*R, 0, 1, 0, 0, # shear
         [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
-        6*np.pi, 6*np.pi/200, # time
+        tmax, dt, # time
         R_i, R_j
     )
 elif testID == 6:
@@ -91,7 +93,7 @@ elif testID == 6:
         0, 0, 0, 0, 0, # roll
         0.02*R, 0, 1, 0, 0, # shear
         [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
-        6*np.pi, 6*np.pi/200, # time
+        tmax, dt, # time
         R_i, R_j
     )
 elif testID == 7:
@@ -104,7 +106,7 @@ elif testID == 7:
         0, 0, 0, 0, 0, # roll
         0.02*R, 0, 1, 0, 0, # shear
         [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
-        6*np.pi, 6*np.pi/200, # time
+        tmax, dt, # time
         R_i, R_j
     )
 
@@ -114,9 +116,13 @@ elif testID == 7:
 # Simulate contact interaction
 contact_params = {'k_n':    1.0e7, 
                   'k_s':    0.5e7, 
+                  'k_r':    0.0, 
+                  'k_t':    0.0,
                   'mu':     0.5, 
                   'eta_n':  0.0,
                   'eta_s':  0.0,
+                  'eta_r':  0.0,
+                  'eta_t':  0.0,
                   'R_i':    R_i,
                   'R_j':    R_j}
 

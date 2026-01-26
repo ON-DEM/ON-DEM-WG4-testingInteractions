@@ -12,14 +12,17 @@ def Fn_spring_dashpot(contact_params, motions):
     F_n = - ( k_n * u_n + eta_n * v_n ) * n 
     """
     k_n     = contact_params['k_n']         # (1)
-    eta_n   = contact_params['eta_n']        # (1)
+    eta_n   = contact_params['eta_n']       # (1)
     u_n     = motions['u_n'].reshape(-1)    # (N,1)
-    v_n     = motions['v_n']                # (N,1)
+    v_ijn     = motions['v_ijn']              # (N,3)
     n_ij    = motions['n_ij']               # (N,3)
 
-    # Compute effective parameters?
+    # Normal velocity magnitude
+    v_n = np.linalg.norm(v_ijn, axis=1)
 
+    # Apply contact model
     Fn = - ( k_n * u_n[:, None] + eta_n * v_n[:, None] ) * n_ij
+
     return Fn
 
 #
@@ -88,7 +91,7 @@ def Fs_spring_dashpot_Coulomb(contact_params, motions, Fn):
             Fs_old = Fs_tmp.copy() # copy to avoid aliasing
 
             # Add viscous component
-            Fs_tmp -= eta_s * v_s
+            Fs_tmp -= eta_s * v_s[i]
             # Apply Coulomb limit, again (this is a modelling choice!)
             Fs_mag = np.linalg.norm(Fs_tmp)
             if Fs_mag > mu * Fn_mag[i]:
@@ -239,6 +242,7 @@ def Fr_spring_dashpot_Coulomb(contact_params, motions, Fn):
             # Add viscous component
             Fr_tmp -= eta_r * v_r[i]
             # Apply Coulomb limit, again (this is a modelling choice!)
+            Fr_mag = np.linalg.norm(Fr_tmp)
             if Fr_mag > mu * Fn_mag[i]:
                 Fr_tmp *= (mu * Fn_mag[i] / Fr_mag)
 
@@ -402,8 +406,11 @@ def Fn_viscous_const(contact_params, motions):
     _, _, _, m_star = my_compute_effective_params(contact_params)
     k_n     = contact_params['k_n']
     beta_n  = contact_params['beta_n']
-    v_n     = motions['v_n']             # (N,)
+    v_ijn     = motions['v_ijn']             # (N,3)
     n_ij    = motions['n_ij']            # (N,3)
+
+    # Normal velocity magnitude
+    v_n = np.linalg.norm(v_ijn, axis=1)
 
     # viscous coefficient
     eta_n = 2.0 * np.sqrt(m_star * k_n) * beta_n
@@ -423,8 +430,11 @@ def Fn_viscous_veldep(contact_params, motions):
     _, _, _, m_star = my_compute_effective_params(contact_params)
     k_n  = contact_params['k_n']
     cor  = contact_params['restitution']
-    v_n  = motions['v_n']
+    v_ijn  = motions['v_ijn']
     n_ij = motions['n_ij']
+
+    # Normal velocity magnitude
+    v_n = np.linalg.norm(v_ijn, axis=1)
 
     # damping ratio
     beta = - np.log(cor) / np.sqrt(np.pi**2 + (np.log(cor))**2)

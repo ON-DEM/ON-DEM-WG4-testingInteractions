@@ -51,8 +51,9 @@ def my_simulate_motion(
       v_i,v_j: (N,3)
       q_i,q_j: (N,3)
       omega_i,omega_j: (N,3)
-      n_ij,v_ij,l_ij: (N,3)
+      n_ij,v_ijn,l_ij: (N,3)
       omega_b: (3,)
+      v_s,v_r,v_theta: (N,3)
     """
     # Convert inputs to arrays
     x_b = np.asarray(x_b, float)

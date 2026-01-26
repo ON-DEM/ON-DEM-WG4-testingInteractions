@@ -9,20 +9,26 @@ from C_contact_laws import *
 from D_helpers import *
 
 # Which test to run?
-testID = 1
+# Get testID from command line argument
+if len(sys.argv) < 2:
+    print("Usage: python F_run_test.py <testID>")
+    print("Example: python F_run_test.py 1")
+    sys.exit(1)
+
+testID = int(sys.argv[1])
 testname = 'test_'+str(testID).zfill(2)
 
 # Generate velocities and motion profile
 R_i = 1.0
 R_j = 1.0
 R = (R_i + R_j)/2.0
-tmax = 6*np.pi
-dt = 6*np.pi/200
+tmax = 6.0*np.pi
+dt = 6.0*np.pi/200.0
 if testID == 1:
     # Tangential elastic response
     motion = my_simulate_motion(
         [0,0,0],[0,0,0],[0,0,0], # initial pos, vel, ang vel
-        [1.0,0,0,0], [1.0,0,0,0], # initial ori
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
         0, 0, 0, 0, 0, [0,0,1.95*R], # normal loading, initial branch
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
@@ -35,7 +41,7 @@ elif testID == 2:
     # Tangential plastic response
     motion = my_simulate_motion(
         [0,0,0],[0,0,0],[0,0,0], # initial pos, vel, ang vel
-        [1.0,0,0,0], [1.0,0,0,0], # initial ori
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
         0, 0, 0, 0, 0, [0,0,1.95*R], # normal loading, initial branch
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
@@ -48,7 +54,7 @@ elif testID == 3:
     # Out-of-plane tangent force rotation
     motion = my_simulate_motion(
         [0,0,0],[0,0,0],[0,1.0,0], # initial pos, vel, ang vel
-        [1.0,0,0,0], [1.0,0,0,0], # initial ori
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
         0, 0, 0, 0, 0, [0,0,1.95*R], # normal loading, initial branch
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
@@ -61,7 +67,7 @@ elif testID == 4:
     # In-plane tangent force rotation
     motion = my_simulate_motion(
         [0,0,0],[0,0,0],[0,0,1.0], # initial pos, vel, ang vel
-        [1.0,0,0,0], [1.0,0,0,0], # initial ori
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
         0, 0, 0, 0, 0, [0,0,1.95*R], # normal loading, initial branch
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
@@ -71,23 +77,27 @@ elif testID == 4:
         R_i, R_j
     )
 elif testID == 5:
-    # Purely repulsive viscous forces
+    # Carnot cycle: approach-load, shear forward at high load, unload, shear back at low load
+    # Period = 3π, two complete cycles in tmax = 6π
+    # Normal: oscillate between approach and unload
+    # Shear: 90° out of phase - shear at maximum and minimum penetration depths
+    w_cycle = 2*np.pi / (3*np.pi)  # frequency for 3π period
     motion = my_simulate_motion(
         [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
-        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
-        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
+        0, 0.06*R, w_cycle, np.pi/2, 0, [1.95*R,0.0,0.0], # normal: approach-unload cycle
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
-        0.02*R, 0, 1, 0, 0, # shear
+        0, 0.03*R, w_cycle, 0, 0, # shear: 90° out of phase with normal (peaks at load transitions)
         [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
         tmax, dt, # time
         R_i, R_j
     )
 elif testID == 6:
-    # Shear displacement calculated with surface arm
+    # Purely repulsive viscous forces
     motion = my_simulate_motion(
         [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
-        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
         0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
@@ -97,10 +107,62 @@ elif testID == 6:
         R_i, R_j
     )
 elif testID == 7:
-    # Do nothing
+    # Viscous force discontinuity at zero overlap
     motion = my_simulate_motion(
         [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
-        [1.0,0.0,0.0,0.0], [1.0,0.0,0.0,0.0], # initial ori
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
+        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0.02*R, 0, 1, 0, 0, # shear
+        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        tmax, dt, # time
+        R_i, R_j
+    )
+elif testID == 8:
+    # Including or excluding viscous force from Coulomb limit
+    motion = my_simulate_motion(
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
+        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0.02*R, 0, 1, 0, 0, # shear
+        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        tmax, dt, # time
+        R_i, R_j
+    )
+elif testID == 9:
+    # Particle size effect
+    motion = my_simulate_motion(
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
+        0, 0, 1, 0, 0, [0.5*1.95*R,0.0,0.0], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0.02*R, 0, 1, 0, 0, # shear
+        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        tmax, dt, # time
+        0.5*R_i, 0.5*R_j
+    )
+elif testID == 10:
+    # Oblique impact?
+    motion = my_simulate_motion(
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
+        0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0.02*R, 0, 1, 0, 0, # shear
+        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        tmax, dt, # time
+        R_i, R_j
+    )
+elif testID == 11:
+    # Complex rotation case?
+    motion = my_simulate_motion(
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
         0, 0, 1, 0, 0, [1.95*R,0.0,0.0], # normal loading, initial branch
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
@@ -140,6 +202,7 @@ plt.plot(results['t'], results['x_j'][:,0],'b', label='x_j')
 plt.plot(results['t'], results['v_i'][:,0],'r--', label='v_i')
 plt.plot(results['t'], results['v_j'][:,0],'b--', label='v_j')
 plt.plot(results['t'], results['u_n'],'g', label='u_n')
+plt.xlim(0, tmax)
 plt.xlabel('Time')
 plt.ylabel('Position or velocity')
 plt.legend()
@@ -152,6 +215,7 @@ plt.plot(results['t'], results['F_i'][:,0],'r', label='F_i')
 plt.plot(results['t'], results['F_j'][:,0],'b', label='F_j')
 plt.plot(results['t'], results['T_i'][:,0],'r--', label='T_i')
 plt.plot(results['t'], results['T_j'][:,0],'b--', label='T_j')
+plt.xlim(0, tmax)
 plt.xlabel('Time')
 plt.ylabel('Force or torque x')
 plt.ticklabel_format(axis='both', style='sci', scilimits=(0,0))
@@ -165,6 +229,7 @@ plt.plot(results['t'], results['F_i'][:,1],'r', label='F_i')
 plt.plot(results['t'], results['F_j'][:,1],'b', label='F_j')
 plt.plot(results['t'], results['T_i'][:,1],'r--', label='T_i')
 plt.plot(results['t'], results['T_j'][:,1],'b--', label='T_j')
+plt.xlim(0, tmax)
 plt.xlabel('Time')
 plt.ylabel('Force or torque y')
 plt.ticklabel_format(axis='both', style='sci', scilimits=(0,0))
@@ -178,6 +243,7 @@ plt.plot(results['t'], results['F_i'][:,2],'r', label='F_i')
 plt.plot(results['t'], results['F_j'][:,2],'b', label='F_j')
 plt.plot(results['t'], results['T_i'][:,2],'r--', label='T_i')
 plt.plot(results['t'], results['T_j'][:,2],'b--', label='T_j')
+plt.xlim(0, tmax)
 plt.xlabel('Time')
 plt.ylabel('Force or torque z')
 plt.ticklabel_format(axis='both', style='sci', scilimits=(0,0))

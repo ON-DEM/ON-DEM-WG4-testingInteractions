@@ -20,7 +20,7 @@ testname = f'test_{testID:02d}'
 # Construct file paths
 input_dem_file = f'../../input_DEM/dem_input_{testname}.csv'
 output_ana_file = f'../../output_ANA/theoretical_output_{testname}.json'
-output_dem_file = f'../../output_DEM/dem_input_YADE_{testname}.csv'
+output_dem_file = f'../../output_DEM/dem_output_YADE_{testname}.csv'
 output_report_file = f'../../output_REPORT/comparison_report_{testname}.txt'
 
 # Create output directories if they don't exist

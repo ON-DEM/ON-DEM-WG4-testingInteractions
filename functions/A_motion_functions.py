@@ -49,7 +49,7 @@ def my_simulate_motion(
       t: (N,1)
       x_i,x_j: (N,3)
       v_i,v_j: (N,3)
-      q_i,q_j: (N,3)
+      q_i,q_j: (N,4)
       omega_i,omega_j: (N,3)
       n_ij,v_ijn,l_ij: (N,3)
       omega_b: (3,)

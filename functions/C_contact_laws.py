@@ -1,4 +1,4 @@
-# Copyright 2025: Danny van der Haven, dannyvdhaven@gmail.com
+# Copyright 2025: Danny van der Haven, dlhv2@cantab.ac.uk
 
 import numpy as np
 
@@ -12,7 +12,7 @@ def Fn_spring_dashpot(contact_params, motions):
     F_n = - ( k_n * u_n + eta_n * v_n ) * n 
     """
     k_n     = contact_params['k_n']         # (1)
-    eta_n   = contact_params['k_n']         # (1)
+    eta_n   = contact_params['eta_n']        # (1)
     u_n     = motions['u_n'].reshape(-1)    # (N,1)
     v_n     = motions['v_n']                # (N,1)
     n_ij    = motions['n_ij']               # (N,3)
@@ -26,7 +26,7 @@ def Fn_spring_dashpot(contact_params, motions):
 #   SHEAR FORCE LAWS
 #
 
-def Fs_spring_dashpot_Coloumb(contact_params, motions, Fn):
+def Fs_spring_dashpot_Coulomb(contact_params, motions, Fn):
     """
     Linear spring-dashpot in parallel capped by Coulomb limit
     Fs = - k_s * u_s * n_s - eta_s * v_s, with |Fs| <= mu*|Fn|
@@ -55,7 +55,7 @@ def Fs_spring_dashpot_Coloumb(contact_params, motions, Fn):
     Fs_tmp = np.zeros(3)
     Fs_old = np.zeros(3)
     for i in range(N):
-        # Shear force and displacement is lost if contact is lost
+        # Shear force and displacement are lost if contact is lost
         if mask[i]:
             Fs[i] = 0.0
             Fs_old = np.zeros(3)
@@ -66,7 +66,7 @@ def Fs_spring_dashpot_Coloumb(contact_params, motions, Fn):
             # Small-angle rotation update inside the loop
             omega = omega_b[i]*dt[i]
             theta = np.linalg.norm(omega)
-            if theta > 1e-12:
+            if theta > 1e-12: # Bad magic number
                 axis = omega / theta
                 # Rodrigues’ rotation formula for rotation matrix
                 K = np.array([
@@ -85,11 +85,11 @@ def Fs_spring_dashpot_Coloumb(contact_params, motions, Fn):
                 Fs_tmp *= (mu * Fn_mag[i] / Fs_mag)
             
             # Save elastic component for next time step
-            Fs_old = Fs_tmp.copy()
+            Fs_old = Fs_tmp.copy() # copy to avoid aliasing
 
             # Add viscous component
             Fs_tmp -= eta_s * v_s
-            # Apply Coulomb limit, again
+            # Apply Coulomb limit, again (this is a modelling choice!)
             Fs_mag = np.linalg.norm(Fs_tmp)
             if Fs_mag > mu * Fn_mag[i]:
                 Fs_tmp *= (mu * Fn_mag[i] / Fs_mag)
@@ -99,7 +99,7 @@ def Fs_spring_dashpot_Coloumb(contact_params, motions, Fn):
 
     return Fs
 
-def Fs_spring_dashpot_Coloumb_ext(contact_params, motions, Fn):
+def Fs_spring_dashpot_Coulomb_ext(contact_params, motions, Fn):
     """
     Linear spring-dashpot in parallel capped by Coulomb limit
     Fs = - k_s * u_s * n_s, with |Fs| <= mu*|Fn|
@@ -164,6 +164,7 @@ def Fs_spring_dashpot_Coloumb_ext(contact_params, motions, Fn):
 
             # Add viscous component
             Fs_tmp -= eta_s * v_s
+            # No limit on viscous contribution (this is a modelling choice!)
 
             # Save total shear force
             Fs[i] = Fs_tmp.copy() # copy to avoid aliasing
@@ -174,22 +175,75 @@ def Fs_spring_dashpot_Coloumb_ext(contact_params, motions, Fn):
 #   ROLLING FORCE LAWS
 #
 
-def Fr_spring_dashpot_Coloumb(contact_params, motions, Fn):
+def Fr_spring_dashpot_Coulomb(contact_params, motions, Fn):
     """
     Linear spring-dashpot in parallel capped by Coulomb limit
-    Fr = - k_r * u_r * n_r - eta_r * v_r, with |Fr| <= mu*|Fr|
+    Fr = - k_r * u_r - eta_r * v_r, with |Fr| <= mu*|Fn|
     """
-    k_t     = contact_params['k_r']                         # (1)
-    eta_s   = contact_params['eta_r']                       # (1)
+    k_r     = contact_params['k_r']                         # (1)
+    eta_r   = contact_params['eta_r']                       # (1)
     mu      = contact_params['mu']                          # (1)
     u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
     v_r     = np.array(motions['v_r'], dtype=float)         # (N,3)
     omega_b = np.asarray(motions['omega_b'], dtype=float)   # (N,3)
     dt      = np.array(motions['dt'], dtype=float)          # (1)
 
-    # Shear displacement increment per time step
+    # Rolling displacement increment per time step
     du_r = v_r * dt[:,None]
 
+    # Test for contact
+    mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
+
+    # Normal force magnitudes
+    Fn_mag = np.linalg.norm(Fn, axis=1)
+
+    # Accumulate rolling force
+    N, dim = du_r.shape
+    Fr = np.zeros((N,dim))
+    Fr[0] = 0
+    Fr_tmp = np.zeros(3)
+    Fr_old = np.zeros(3)
+    for i in range(N):
+        # Rolling force is lost if contact is lost
+        if mask[i]:
+            Fr[i] = 0.0
+            Fr_old = np.zeros(3)
+        else:
+            # Retrieve elastic component previous rolling force
+            Fr_tmp = Fr_old
+
+            # Small-angle rotation update inside the loop
+            omega = omega_b[i]*dt[i]
+            theta = np.linalg.norm(omega)
+            if theta > 1e-12:
+                axis = omega / theta
+                # Rodrigues' rotation formula for rotation matrix
+                K = np.array([
+                    [0, -axis[2], axis[1]],
+                    [axis[2], 0, -axis[0]],
+                    [-axis[1], axis[0], 0]
+                ])
+                R = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
+                Fr_tmp = R @ Fr_tmp
+
+            # Integrate increment
+            Fr_tmp -= k_r * du_r[i]
+            # Apply Coulomb limit
+            Fr_mag = np.linalg.norm(Fr_tmp)
+            if Fr_mag > mu * Fn_mag[i]:
+                Fr_tmp *= (mu * Fn_mag[i] / Fr_mag)
+            
+            # Save elastic component for next time step
+            Fr_old = Fr_tmp.copy() # copy to avoid aliasing
+
+            # Add viscous component
+            Fr_tmp -= eta_r * v_r[i]
+            # Apply Coulomb limit, again (this is a modelling choice!)
+            if Fr_mag > mu * Fn_mag[i]:
+                Fr_tmp *= (mu * Fn_mag[i] / Fr_mag)
+
+            # Save total rolling force
+            Fr[i] = Fr_tmp.copy() # copy to avoid aliasing
 
     return Fr
 
@@ -198,7 +252,63 @@ def Fr_spring_dashpot_Coloumb(contact_params, motions, Fn):
 #   TWISTING FORCE LAWS
 #
 
-def Tt_spring_dashpot_Coloumb(contact_params, motions, Fn):
+def Tt_spring_dashpot_Coulomb(contact_params, motions, Fn):
+    """
+    Linear spring-dashpot in parallel capped by Coulomb limit
+    Tt = - k_t * theta - eta_t * omega_t * dt, with |Tt| <= mu*|Fn|
+    """
+    k_t     = contact_params['k_t']                         # (1)
+    eta_t   = contact_params['eta_t']                       # (1)
+    mu      = contact_params['mu']                          # (1)
+    u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
+    n_ij    = np.array(motions['n_ij'], dtype=float)        # (N,3)
+    v_theta = np.asarray(motions['v_theta'], dtype=float)   # (N,3)
+    dt      = np.array(motions['dt'], dtype=float)          # (1)
+
+    # Test for contact
+    mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
+
+    # Normal force magnitudes
+    Fn_mag = np.linalg.norm(Fn, axis=1)
+
+    # Accumulate twisting torque
+    N = len(u_n)
+    Tt = np.zeros((N,3))
+    Tt[0] = 0
+    Tt_tmp = np.zeros(3)
+    Tt_old = np.zeros(3)
+    for i in range(N):
+        # Twisting torque is lost if contact is lost
+        if mask[i]:
+            Tt[i] = 0.0
+            Tt_old = np.zeros(3)
+        else:
+            # Retrieve elastic component previous twisting torque
+            Tt_tmp = Tt_old
+
+            # Angular increment this time step (theta accumulated)
+            omega = v_theta[i]*dt[i]
+            
+            # Integrate increment
+            Tt_tmp -= k_t * omega
+            
+            # Apply Coulomb limit
+            Tt_mag = np.linalg.norm(Tt_tmp)
+            if Tt_mag > mu * Fn_mag[i]:
+                Tt_tmp *= (mu * Fn_mag[i] / Tt_mag)
+            
+            # Save elastic component for next time step
+            Tt_old = Tt_tmp.copy() # copy to avoid aliasing
+
+            # Add viscous component
+            Tt_tmp -= eta_t * v_theta[i] * dt[i]
+            # Apply Coulomb limit, again (this is a modelling choice!)
+            Tt_mag = np.linalg.norm(Tt_tmp)
+            if Tt_mag > mu * Fn_mag[i]:
+                Tt_tmp *= (mu * Fn_mag[i] / Tt_mag)
+
+            # Save total twisting torque
+            Tt[i] = Tt_tmp.copy() # copy to avoid aliasing
 
     return Tt
 
@@ -253,7 +363,7 @@ def my_compute_effective_params(contact_params):
 
 
 
-
+# Below are some other contact models that we don't use right now.
 
 def Fn_linear_elastic(contact_params, motions):
     """F_n = - k_n u_n"""

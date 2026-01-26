@@ -1,4 +1,4 @@
-# Copyright 2025: Danny van der Haven, dannyvdhaven@gmail.com
+# Copyright 2025: Danny van der Haven, dlhv2@cantab.ac.uk
 
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -121,17 +121,17 @@ def my_simulate_motion(
         # Body rotation, this works because omega_b is constant.
         Rb = Rotation.from_rotvec(omega_b * ti)
 
-        # Contact normal
+        # Contact normal (Eq. 5)
         n_ij[idx] = Rb.apply(n0)
 
-        # Compute relative normal velocity
+        # Compute relative normal velocity (Eq. 23)
         v_ijn[idx] = A - B * np.sin(w * ti + phi) * np.exp(k * ti) * n_ij[idx]
 
-        # Compute branch magnitude
+        # Compute branch magnitude (Eq. 24)
         if zero_k and zero_w:
             mag = norm_l0 + A * ti - B * ti * np.sin(phi)
         elif zero_k:
-            mag = norm_l0 + A * ti - (B/w) * (np.cos(phi) - np.cos(w * ti + phi))
+            mag = norm_l0 + A * ti - (B / w) * (np.cos(phi) - np.cos(w * ti + phi))
         elif zero_w:
             mag = norm_l0 + A * ti - (B / k) * np.sin(phi) * (np.exp(k * ti) - 1.0)
         else:
@@ -144,39 +144,39 @@ def my_simulate_motion(
                        - ( k * np.sin(phi) - w * np.cos(phi) )
                    )
                   )
-        # Branch vector
+        # Branch vector (Eq. 6)
         l_ij[idx] = mag * n_ij[idx]
         
-        # Positions
+        # Positions (Eq. 1 and 2)
         x_i[idx] = Rb.apply(x_b) + v_b * ti
         x_j[idx] = x_i[idx] + l_ij[idx]
 
-        # Velocities
+        # Velocities (Eq. 3 and 4)
         v_i[idx] = v_b + np.cross(omega_b, x_i[idx])
         v_j[idx] = v_i[idx] + np.cross(omega_b, l_ij[idx]) + v_ijn[idx]
 
-        # Angular velocities
+        # Angular velocities (Eq. 23)
         omegar_t = A_t - B_t * np.sin(w_t * ti + phi_t) * np.exp(k_t * ti)
         omegar_r = A_r - B_r * np.sin(w_r * ti + phi_r) * np.exp(k_r * ti)
         omegar_s = A_s - B_s * np.sin(w_s * ti + phi_s) * np.exp(k_s * ti)
-        # Rotated direction vectors
+        # Rotated direction vectors (Eq. 9 and 10)
         nr_r = Rb.apply(n_r)
         nr_s = Rb.apply(n_s)
         omega_i[idx] = (omega_b
                         + 0.5 * omegar_t * n_ij[idx]
-                        + 1/R_i * omegar_r * nr_r
-                        + 1/R_i * omegar_s * nr_s)
+                        + 0.5/R_i * omegar_r * nr_r
+                        + 0.5/R_i * omegar_s * nr_s)
         omega_j[idx] = (omega_b
                         - 0.5 * omegar_t * n_ij[idx]
-                        - 1/R_j * omegar_r * nr_r
-                        + 1/R_j * omegar_s * nr_s)
+                        - 0.5/R_j * omegar_r * nr_r
+                        + 0.5/R_j * omegar_s * nr_s)
         
-        # Twist, roll, and shear velocities
+        # Twist, roll, and shear velocities (Eq. 18 and 20)
         v_theta[idx] = omegar_t * n_ij[idx]
         v_r[idx] = omegar_r * np.cross(n_r, n_ij[idx])
         v_s[idx] = omegar_s * np.cross(n_s, n_ij[idx])
     
-    # Compute normal overlap
+    # Compute normal overlap (Eq. 12)
     l_mag = np.linalg.norm(l_ij, axis=1)
     u_n = (R_i + R_j - l_mag).reshape(-1,1) # Surface-to-surface across entire contact
     u_n = np.maximum(u_n, 0.0)

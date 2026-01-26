@@ -1,4 +1,4 @@
-# Copyright 2025: Danny van der Haven, dannyvdhaven@gmail.com
+# Copyright 2025: Danny van der Haven, dlhv2@cantab.ac.uk
 
 import matplotlib.pyplot as plt
 import sys
@@ -113,16 +113,18 @@ elif testID == 7:
 
 # Simulate contact interaction
 contact_params = {'k_n':    1.0e7, 
-                  'k_t':    0.5e7, 
+                  'k_s':    0.5e7, 
                   'mu':     0.5, 
+                  'eta_n':  0.0,
+                  'eta_s':  0.0,
                   'R_i':    R_i,
                   'R_j':    R_j}
 
 results = my_simulate_contact(
     motion,
     contact_params,
-    Fn_linear_elastic,
-    Ft_linear_Coloumb)
+    Fn_spring_dashpot,
+    Fs_spring_dashpot_Coulomb)
 
 
 # Plotting motion

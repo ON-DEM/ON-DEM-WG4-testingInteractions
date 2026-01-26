@@ -1,4 +1,4 @@
-# Copyright 2025: Danny van der Haven, dannyvdhaven@gmail.com
+# Copyright 2025: Danny van der Haven, dlhv2@cantab.ac.uk
 
 import numpy as np
 

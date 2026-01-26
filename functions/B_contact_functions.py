@@ -1,4 +1,4 @@
-# Copyright 2025: Danny van der Haven, dannyvdhaven@gmail.com
+# Copyright 2025: Danny van der Haven, dlhv2@cantab.ac.uk
 
 import numpy as np
 
@@ -15,7 +15,7 @@ def my_simulate_contact(motions, contact_params, Fn_func, Fs_func=None, Fr_func=
     contact_params : dict
         Dictionary of contact parameters. Expected keys:
             'kn' : float - normal stiffness
-            'kt' : float - tangential stiffness
+            'ks' : float - tangential stiffness
             'mu' : float - friction coefficient
             'R_i','R_j'  : float - reference length to surface,
                 particle radii in the case of spheres.
@@ -29,6 +29,9 @@ def my_simulate_contact(motions, contact_params, Fn_func, Fs_func=None, Fr_func=
             'n_ij'   : (N,3) contact normals
             'v_ijn'  : (N,3) normal component of rel vel
             'l_ij'   : (N,3) center-center branch vector
+            'v_s'    : (N,3) tangential component of rel vel
+            'v_r'    : (N,3) rolling component of rel vel
+            'v_theta': (N,3) twist component of rel vel
     Fn_func : callable
         Function to compute normal force:
             Fn = Fn_func(contact_params, motions)
@@ -83,6 +86,8 @@ def my_simulate_contact(motions, contact_params, Fn_func, Fs_func=None, Fr_func=
     r_j = R_j - 0.5*u_n
     cross_nF_i = np.cross(n_ij, F_i)
     cross_nF_j = np.cross(-n_ij, F_j)
+    # Sum torque induced by force with torque from
+    # direct-torque contact models (such as with twist)
     T_i = (r_i * cross_nF_i) + Tt
     T_j = (r_j * cross_nF_j) - Tt
 

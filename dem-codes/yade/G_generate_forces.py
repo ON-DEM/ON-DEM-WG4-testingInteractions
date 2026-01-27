@@ -25,7 +25,7 @@ O.bodies[1].state.ori = Quaternion((0,0,0),1) # Just to be sure
 # Add a dummy material
 O.materials.append(FrictMat(young=1.0e7, poisson=0.5, frictionAngle=atan(0.5)))
 kn = 1.0e7  # normal stiffness
-kt = 0.5e7  # tangential stiffness
+ks = 0.5e7  # tangential or shear stiffness
 
 # --- Time stepping logic ---
 current_index = 0
@@ -61,10 +61,10 @@ O.engines = [
 	InsertionSortCollider([Bo1_Sphere_Aabb()]),
 	PyRunner(command='imposeVelocity()', initRun=True, iterPeriod=1),
 	InteractionLoop(
-		[Ig2_Sphere_Sphere_ScGeom()],
+		[Ig2_Sphere_Sphere_ScGeom(avoidGranularRatcheting=True)],
 		[Ip2_FrictMat_FrictMat_FrictPhys(
 			kn=MatchMaker(algo='val', val=kn),
-			ks=MatchMaker(algo='val', val=kt))],
+			ks=MatchMaker(algo='val', val=ks))],
 		[Law2_ScGeom_FrictPhys_CundallStrack()]
 	),
 	PyRunner(command='saveData()', initRun=True, iterPeriod=1),
@@ -73,8 +73,6 @@ O.engines = [
 
 # --- Set up plotting ---
 plot.plots = {'x1': ('f1x',)}
-
-O.dt=1
 
 ## --- Run simulation and save ---
 O.run(len(velocity_data), True)

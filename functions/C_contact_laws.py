@@ -14,7 +14,7 @@ def Fn_spring_dashpot(contact_params, motions):
     k_n     = contact_params['k_n']         # (1)
     eta_n   = contact_params['eta_n']       # (1)
     u_n     = motions['u_n'].reshape(-1)    # (N,1)
-    v_ijn     = motions['v_ijn']              # (N,3)
+    v_ijn   = motions['v_ijn']              # (N,3)
     n_ij    = motions['n_ij']               # (N,3)
 
     # Normal velocity magnitude

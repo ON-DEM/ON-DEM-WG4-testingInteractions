@@ -82,14 +82,16 @@ elif testID == 5:
     # Normal: oscillate between approach and unload
     # Shear: 90° out of phase - shear at maximum and minimum penetration depths
     w_cycle = 2*np.pi / (3*np.pi)  # frequency for 3π period
+    # Place initial branch along z: initial position/branch at [0,0,1.95*R]
+    # Choose roll and shear axes orthogonal to branch (x and y)
     motion = my_simulate_motion(
         [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
         [0,0,0,1.0], [0,0,0,1.0], # initial ori
-        0, 0.06*R, w_cycle, np.pi/2, 0, [1.95*R,0.0,0.0], # normal: approach-unload cycle
+        0, 0.06*R, w_cycle, np.pi/2, 0, [0.0,0.0,1.95*R], # normal: approach-unload cycle (branch along z)
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
         0, 0.03*R, w_cycle, 0, 0, # shear: 90° out of phase with normal (peaks at load transitions)
-        [0.0,1.0,0.0], [0.0,0.0,1.0], # roll and shear axes
+        [1.0,0.0,0.0], [0.0,1.0,0.0], # roll and shear axes (both orthogonal to branch)
         tmax, dt, # time
         R_i, R_j
     )

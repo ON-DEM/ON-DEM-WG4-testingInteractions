@@ -16,16 +16,16 @@ else:
 velocity_data = np.loadtxt(inputFile, comments='#')  # shape (N, 7)
 
 # --- Initialize simulation scene ---
+# Add a dummy material
+O.materials.append(FrictMat(young=1.0e7, poisson=0.5, frictionAngle=atan(0.5)))
+kn = 1.0e7  # normal stiffness
+ks = 0.5e7  # tangential or shear stiffness
+
 sphere1 = sphere(center=(0, 0, 0), radius=1.0, fixed=True)
 sphere2 = sphere(center=(0, 0, 1.95), radius=1.0, fixed=True)
 O.bodies.append([sphere1, sphere2])
 O.bodies[0].state.ori = Quaternion((0,0,0),1) # Just to be sure
 O.bodies[1].state.ori = Quaternion((0,0,0),1) # Just to be sure
-
-# Add a dummy material
-O.materials.append(FrictMat(young=1.0e7, poisson=0.5, frictionAngle=atan(0.5)))
-kn = 1.0e7  # normal stiffness
-ks = 0.5e7  # tangential or shear stiffness
 
 # --- Time stepping logic ---
 current_index = 0
@@ -41,7 +41,7 @@ def imposeVelocity():
 
 		O.bodies[0].state.vel = v1
 		O.bodies[1].state.vel = v2
-		O.bodies[1].state.angVel = w1
+		O.bodies[0].state.angVel = w1
 		O.bodies[1].state.angVel = w2
 
 	current_index += 1
@@ -64,7 +64,8 @@ O.engines = [
 		[Ig2_Sphere_Sphere_ScGeom(avoidGranularRatcheting=True)],
 		[Ip2_FrictMat_FrictMat_FrictPhys(
 			kn=MatchMaker(algo='val', val=kn),
-			ks=MatchMaker(algo='val', val=ks))],
+			ks=MatchMaker(algo='val', val=ks)
+		)],
 		[Law2_ScGeom_FrictPhys_CundallStrack()]
 	),
 	PyRunner(command='saveData()', initRun=True, iterPeriod=1),

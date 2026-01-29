@@ -52,10 +52,18 @@ def saveData():
 	s1=O.bodies[0].state
 	s2=O.bodies[1].state
 	# Store for plotting
-	plot.addData(t=O.time, x1=s1.pos[0], y1=s1.pos[1], z1=s1.pos[2], x2=s2.pos[0], y2=s2.pos[1], z2=s2.pos[2], qx1=s1.ori[0], qy1=s1.ori[1], qz1=s1.ori[2], qw1=s1.ori[3], qx2=s2.ori[0], qy2=s2.ori[1], qz2=s2.ori[2], qw2=s2.ori[3], f1x=f1[0], f1y=f1[1], f1z=f1[2], f2x=f2[0], f2y=f2[1], f2z=f2[2], t1x=t1[0], t1y=t1[1], t1z=t1[2],  t2x=t2[0], t2y=t2[1], t2z=t2[2])
+	plot.addData(t=O.time, 
+			x1=s1.pos[0], y1=s1.pos[1], z1=s1.pos[2],
+			x2=s2.pos[0], y2=s2.pos[1], z2=s2.pos[2],
+			qx1=s1.ori[0], qy1=s1.ori[1], qz1=s1.ori[2], qw1=s1.ori[3],
+			qx2=s2.ori[0], qy2=s2.ori[1], qz2=s2.ori[2], qw2=s2.ori[3],
+			f1x=f1[0], f1y=f1[1], f1z=f1[2],
+			f2x=f2[0], f2y=f2[1], f2z=f2[2],
+			t1x=t1[0], t1y=t1[1], t1z=t1[2], 
+			t2x=t2[0], t2y=t2[1], t2z=t2[2])
 
 # --- Engines ---
-O.dt = 6.0*np.pi/200.0
+O.dt = 6.0*np.pi/1.0e5 # Or velocity_data[1][0] - velocity_data[0][0]?
 O.engines = [
 	ForceResetter(),
 	InsertionSortCollider([Bo1_Sphere_Aabb()]),

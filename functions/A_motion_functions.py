@@ -144,7 +144,7 @@ def my_simulate_motion(
     zero_k = np.isclose(k, 0)
     zero_w = np.isclose(w, 0)
 
-    for idx, ti in enumerate(t): #t[1:], start=1
+    for idx, ti in enumerate(t):
         # Body rotation, this works because omega_b is constant.
         Rb = Rotation.from_rotvec(omega_b * ti)
 

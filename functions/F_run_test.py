@@ -17,13 +17,14 @@ if len(sys.argv) < 2:
 
 testID = int(sys.argv[1])
 testname = 'test_'+str(testID).zfill(2)
+doPlot = False
 
 # Generate velocities and motion profile
 R_i = 1.0
 R_j = 1.0
 R = (R_i + R_j)/2.0
 tmax = 6.0*np.pi
-dt = 6.0*np.pi/200.0
+dt = 6.0*np.pi/1.0e5
 if testID == 1:
     # Tangential elastic response
     motion = my_simulate_motion(
@@ -58,7 +59,7 @@ elif testID == 3:
         0, 0, 0, 0, 0, [0,0,1.95*R], # normal loading, initial branch
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
-        0, 0, 0, 0, 0, # shear 0.02*R
+        0.02*R, 0, 0, 0, 0, # shear
         [1.0,0,0], [0,1.0,0], # roll and shear axes
         tmax, dt, # time
         R_i, R_j
@@ -196,85 +197,86 @@ results = my_simulate_contact(
     Fn_spring_dashpot,
     Fs_spring_dashpot_Coulomb)
 
-import numpy as np
-# initial position (vector)
-x0 = np.asarray(results['x_j'][0])
+# import numpy as np
+# # initial position (vector)
+# x0 = np.asarray(results['x_j'][0])
 
-# velocities (Nt, 3)
-v = np.asarray(results['v_j'])
+# # velocities (Nt, 3)
+# v = np.asarray(results['v_j'])
 
-# integrate velocity to get displacement
-# forward Euler: x_{n+1} = x_n + v_n * dt
-displacements = np.cumsum(v * dt, axis=0)
+# # integrate velocity to get displacement
+# # forward Euler: x_{n+1} = x_n + v_n * dt
+# displacements = np.cumsum(v * dt, axis=0)
 
-# full position history
-x_j = x0 + displacements
+# # full position history
+# x_j = x0 + displacements
 
-# magnitude of position vector at each timestep
-r = np.linalg.norm(x_j, axis=1)
+# # magnitude of position vector at each timestep
+# r = np.linalg.norm(x_j, axis=1)
 
-# subtract 1.95
-out = abs(r - 1.95)/1.95*100
+# # subtract 1.95
+# out = abs(r - 1.95)/1.95*100
 
-# print result
-print(np.mean(out))
-print(np.std(out))
+# # print result
+# print(np.mean(out))
+# print(np.std(out))
 
-# Plotting motion
-plt.figure(0)
-plt.plot(results['t'], results['x_i'][:,0],'r', label='x_i')
-plt.plot(results['t'], results['x_j'][:,0],'b', label='x_j')
-plt.plot(results['t'], results['v_i'][:,0],'r--', label='v_i')
-plt.plot(results['t'], results['v_j'][:,0],'b--', label='v_j')
-plt.plot(results['t'], results['u_n'],'g', label='u_n')
-plt.xlim(0, tmax)
-plt.xlabel('Time')
-plt.ylabel('Position or velocity')
-plt.legend()
-plt.show(block=False)
-plt.savefig('../figures/'+testname+'_plot_pos.png')
+if doPlot:
+    # Plotting motion
+    plt.figure(0)
+    plt.plot(results['t'], results['x_i'][:,0],'r', label='x_i')
+    plt.plot(results['t'], results['x_j'][:,0],'b', label='x_j')
+    plt.plot(results['t'], results['v_i'][:,0],'r--', label='v_i')
+    plt.plot(results['t'], results['v_j'][:,0],'b--', label='v_j')
+    plt.plot(results['t'], results['u_n'],'g', label='u_n')
+    plt.xlim(0, tmax)
+    plt.xlabel('Time')
+    plt.ylabel('Position or velocity')
+    plt.legend()
+    plt.show(block=False)
+    plt.savefig('../figures/'+testname+'_plot_pos.png')
 
-# Plotting forces and torques x
-plt.figure(1)
-plt.plot(results['t'], results['F_i'][:,0],'r', label='F_i')
-plt.plot(results['t'], results['F_j'][:,0],'b', label='F_j')
-plt.plot(results['t'], results['T_i'][:,0],'r--', label='T_i')
-plt.plot(results['t'], results['T_j'][:,0],'b--', label='T_j')
-plt.xlim(0, tmax)
-plt.xlabel('Time')
-plt.ylabel('Force or torque x')
-plt.ticklabel_format(axis='both', style='sci', scilimits=(0,0))
-plt.legend()
-plt.show(block=False)
-plt.savefig('../figures/'+testname+'_plot_force_x.png')
+    # Plotting forces and torques x
+    plt.figure(1)
+    plt.plot(results['t'], results['F_i'][:,0],'r', label='F_i')
+    plt.plot(results['t'], results['F_j'][:,0],'b', label='F_j')
+    plt.plot(results['t'], results['T_i'][:,0],'r--', label='T_i')
+    plt.plot(results['t'], results['T_j'][:,0],'b--', label='T_j')
+    plt.xlim(0, tmax)
+    plt.xlabel('Time')
+    plt.ylabel('Force or torque x')
+    plt.ticklabel_format(axis='both', style='sci', scilimits=(0,0))
+    plt.legend()
+    plt.show(block=False)
+    plt.savefig('../figures/'+testname+'_plot_force_x.png')
 
-# Plotting forces and torques y
-plt.figure(2)
-plt.plot(results['t'], results['F_i'][:,1],'r', label='F_i')
-plt.plot(results['t'], results['F_j'][:,1],'b', label='F_j')
-plt.plot(results['t'], results['T_i'][:,1],'r--', label='T_i')
-plt.plot(results['t'], results['T_j'][:,1],'b--', label='T_j')
-plt.xlim(0, tmax)
-plt.xlabel('Time')
-plt.ylabel('Force or torque y')
-plt.ticklabel_format(axis='both', style='sci', scilimits=(0,0))
-plt.legend()
-plt.show(block=False)
-plt.savefig('../figures/'+testname+'_plot_force_y.png')
+    # Plotting forces and torques y
+    plt.figure(2)
+    plt.plot(results['t'], results['F_i'][:,1],'r', label='F_i')
+    plt.plot(results['t'], results['F_j'][:,1],'b', label='F_j')
+    plt.plot(results['t'], results['T_i'][:,1],'r--', label='T_i')
+    plt.plot(results['t'], results['T_j'][:,1],'b--', label='T_j')
+    plt.xlim(0, tmax)
+    plt.xlabel('Time')
+    plt.ylabel('Force or torque y')
+    plt.ticklabel_format(axis='both', style='sci', scilimits=(0,0))
+    plt.legend()
+    plt.show(block=False)
+    plt.savefig('../figures/'+testname+'_plot_force_y.png')
 
-# Plotting forces and torques z
-plt.figure(3)
-plt.plot(results['t'], results['F_i'][:,2],'r', label='F_i')
-plt.plot(results['t'], results['F_j'][:,2],'b', label='F_j')
-plt.plot(results['t'], results['T_i'][:,2],'r--', label='T_i')
-plt.plot(results['t'], results['T_j'][:,2],'b--', label='T_j')
-plt.xlim(0, tmax)
-plt.xlabel('Time')
-plt.ylabel('Force or torque z')
-plt.ticklabel_format(axis='both', style='sci', scilimits=(0,0))
-plt.legend()
-plt.show(block=False)
-plt.savefig('../figures/'+testname+'_plot_force_z.png')
+    # Plotting forces and torques z
+    plt.figure(3)
+    plt.plot(results['t'], results['F_i'][:,2],'r', label='F_i')
+    plt.plot(results['t'], results['F_j'][:,2],'b', label='F_j')
+    plt.plot(results['t'], results['T_i'][:,2],'r--', label='T_i')
+    plt.plot(results['t'], results['T_j'][:,2],'b--', label='T_j')
+    plt.xlim(0, tmax)
+    plt.xlabel('Time')
+    plt.ylabel('Force or torque z')
+    plt.ticklabel_format(axis='both', style='sci', scilimits=(0,0))
+    plt.legend()
+    plt.show(block=False)
+    plt.savefig('../figures/'+testname+'_plot_force_z.png')
 
 dict_to_json(results,'../output_ANA/theoretical_output_'+testname+'.json')
 dict_to_csv(results, open('../output_ANA/theoretical_output_'+testname+'.csv', 'w'))

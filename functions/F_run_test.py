@@ -53,12 +53,12 @@ elif testID == 2:
 elif testID == 3:
     # Out-of-plane tangent force rotation
     motion = my_simulate_motion(
-        [0,0,0],[0,0,0],[0,1.0,0], # initial pos, vel, ang vel
+        [0,0,0],[0,0,0],[1.0,0,0], # initial pos, vel, ang vel
         [0,0,0,1.0], [0,0,0,1.0], # initial ori
         0, 0, 0, 0, 0, [0,0,1.95*R], # normal loading, initial branch
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
-        0.02*R, 0, 0, 0, 0, # shear
+        0, 0, 0, 0, 0, # shear 0.02*R
         [1.0,0,0], [0,1.0,0], # roll and shear axes
         tmax, dt, # time
         R_i, R_j

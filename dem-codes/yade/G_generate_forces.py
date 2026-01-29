@@ -66,7 +66,7 @@ O.engines = [
 			kn=MatchMaker(algo='val', val=kn),
 			ks=MatchMaker(algo='val', val=ks)
 		)],
-		[Law2_ScGeom_FrictPhys_CundallStrack()]
+		[Law2_ScGeom_FrictPhys_CundallStrack(sphericalBodies=True, approxTangentRot=False)]
 	),
 	PyRunner(command='saveData()', initRun=True, iterPeriod=1),
 	NewtonIntegrator(gravity=(0, 0, 0), damping=0)

@@ -16,6 +16,8 @@ if len(sys.argv) < 2:
 
 testID = int(sys.argv[1])
 testname = f'test_{testID:02d}'
+#yadePath = 'yade'  # Adjust this path if YADE is located elsewhere
+yadePath = '../../../../LS-DEM-dev/install-dev/bin/yade-2026-01-26.git-4c8f5a2'
 
 # Construct file paths
 input_dem_file = f'../../input_DEM/dem_input_{testname}.csv'
@@ -28,7 +30,7 @@ os.makedirs('../../output_DEM', exist_ok=True)
 os.makedirs('../../output_REPORT', exist_ok=True)
 
 # Run YADE simulation with input file
-subprocess.run(['yade','-nx', 'G_generate_forces.py', input_dem_file, output_dem_file], check=True)
+subprocess.run([yadePath,'-nx', 'G_generate_forces.py', input_dem_file, output_dem_file], check=True)
 
 # Load reference (analytical) results
 ref = json_to_dict(output_ana_file)

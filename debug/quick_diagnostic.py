@@ -352,7 +352,7 @@ def quick_check(ana_file, dem_file, test_id):
 
 def main():
     parser = argparse.ArgumentParser(description='Quick diagnostic check with full component testing')
-    parser.add_argument('--testID', type=int, required=True,
+    parser.add_argument('testID', type=int,
                        help='Test ID number (e.g., 1 for test_01)')
     args = parser.parse_args()
     

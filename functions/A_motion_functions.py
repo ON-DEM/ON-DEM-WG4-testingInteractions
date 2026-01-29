@@ -174,8 +174,8 @@ def my_simulate_motion(
         
         # Twist, roll, and shear velocities (Eq. 18 and 20)
         v_theta[idx] = omegar_t * n_ij[idx]
-        v_r[idx] = omegar_r * np.cross(n_r, n_ij[idx])
-        v_s[idx] = omegar_s * np.cross(n_s, n_ij[idx])
+        v_r[idx] = omegar_r * np.cross(nr_r, n_ij[idx])
+        v_s[idx] = omegar_s * np.cross(nr_s, n_ij[idx])
     
     # Compute normal overlap (Eq. 12)
     l_mag = np.linalg.norm(l_ij, axis=1)

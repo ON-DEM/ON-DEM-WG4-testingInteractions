@@ -7,8 +7,8 @@ visualizations to identify differences between theoretical predictions and
 DEM simulation results.
 
 Usage:
-    python compare_outputs.py --testID 1
-    python compare_outputs.py --testID 2
+    python compare_outputs.py 1
+    python compare_outputs.py 2
 """
 
 import numpy as np
@@ -379,12 +379,12 @@ def create_comparison_plots(ana_data, dem_data, errors, output_dir, test_id):
     plt.close(fig5)
     
     # ========================================================================
-    # PLOT 6: Position and Quaternion comparison
+    # PLOT 6: Position and Quaternion comparison - Particle i
     # ========================================================================
     fig6 = plt.figure(figsize=(16, 12))
     gs6 = GridSpec(4, 2, figure=fig6, hspace=0.3, wspace=0.3)
     
-    # Position particle i
+    # Position particle i - all components
     for idx, comp in enumerate(components):
         ax = fig6.add_subplot(gs6[idx, 0])
         ax.plot(ana_data['t'], ana_data['x_i'][:, idx], 
@@ -397,60 +397,100 @@ def create_comparison_plots(ana_data, dem_data, errors, output_dir, test_id):
         ax.legend()
         ax.grid(True, alpha=0.3)
     
-    # Position particle j (z-component only, as x and y should be zero)
+    # Distance between particles (lower left spot)
     ax = fig6.add_subplot(gs6[3, 0])
-    ax.plot(ana_data['t'], ana_data['x_j'][:, 2], 
-           label='Analytical', color=colors_ana[2], linewidth=2)
-    ax.plot(dem_data['t'], dem_data['x_j'][:, 2], 
-           label='DEM', color=colors_dem[2], linewidth=2, linestyle='--', marker='o', markersize=3)
+    ana_distance = np.linalg.norm(ana_data['x_j'] - ana_data['x_i'], axis=1)
+    dem_distance = np.linalg.norm(dem_data['x_j'] - dem_data['x_i'], axis=1)
+    ax.plot(ana_data['t'], ana_distance, 
+           label='Analytical', color='purple', linewidth=2)
+    ax.plot(dem_data['t'], dem_distance, 
+           label='DEM', color='orange', linewidth=2, linestyle='--', marker='o', markersize=3)
     ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Position z (m)')
-    ax.set_title('Particle j: Position z')
+    ax.set_ylabel('Distance (m)')
+    ax.set_title('Distance between particles |x_j - x_i|')
     ax.legend()
     ax.grid(True, alpha=0.3)
     
-    # Quaternion particle i (show all 4 components)
-    ax = fig6.add_subplot(gs6[0:2, 1])
-    for i in range(4):
-        ax.plot(ana_data['t'], ana_data['q_i'][:, i], 
-               label=f'Ana q{i}', linewidth=2)
-    for i in range(4):
-        ax.plot(dem_data['t'], dem_data['q_i'][:, i], 
-               label=f'DEM q{i}', linewidth=1.5, linestyle='--', marker='o', markersize=2)
-    ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Quaternion components')
-    ax.set_title('Particle i: Quaternion')
-    ax.legend(ncol=2, fontsize=8)
-    ax.grid(True, alpha=0.3)
+    # Quaternion particle i - all 4 components in separate subplots
+    quat_components = ['x', 'y', 'z', 'w']
+    for idx in range(4):
+        ax = fig6.add_subplot(gs6[idx, 1])
+        ax.plot(ana_data['t'], ana_data['q_i'][:, idx], 
+               label='Analytical', color='blue', linewidth=2)
+        ax.plot(dem_data['t'], dem_data['q_i'][:, idx], 
+               label='DEM', color='red', linewidth=2, linestyle='--', marker='o', markersize=3)
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel(f'Quaternion {quat_components[idx]}')
+        ax.set_title(f'Particle i: Quaternion {quat_components[idx]}')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
     
-    # Quaternion particle j
-    ax = fig6.add_subplot(gs6[2:4, 1])
-    for i in range(4):
-        ax.plot(ana_data['t'], ana_data['q_j'][:, i], 
-               label=f'Ana q{i}', linewidth=2)
-    for i in range(4):
-        ax.plot(dem_data['t'], dem_data['q_j'][:, i], 
-               label=f'DEM q{i}', linewidth=1.5, linestyle='--', marker='o', markersize=2)
-    ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Quaternion components')
-    ax.set_title('Particle j: Quaternion')
-    ax.legend(ncol=2, fontsize=8)
-    ax.grid(True, alpha=0.3)
-    
-    fig6.suptitle(f'Test {test_id:02d}: Position and Orientation Comparison', 
+    fig6.suptitle(f'Test {test_id:02d}: Position and Orientation - Particle i', 
                   fontsize=16, fontweight='bold')
-    fig6.savefig(os.path.join(output_dir, f'test_{test_id:02d}_position_orientation.png'), 
+    fig6.savefig(os.path.join(output_dir, f'test_{test_id:02d}_position_orientation_i.png'), 
                 dpi=150, bbox_inches='tight')
     plt.close(fig6)
     
     # ========================================================================
-    # PLOT 7: Error summary plot
+    # PLOT 7: Position and Quaternion comparison - Particle j
     # ========================================================================
-    fig7 = plt.figure(figsize=(16, 10))
-    gs7 = GridSpec(2, 2, figure=fig7, hspace=0.3, wspace=0.3)
+    fig7 = plt.figure(figsize=(16, 12))
+    gs7 = GridSpec(4, 2, figure=fig7, hspace=0.3, wspace=0.3)
+    
+    # Position particle j - all components
+    for idx, comp in enumerate(components):
+        ax = fig7.add_subplot(gs7[idx, 0])
+        ax.plot(ana_data['t'], ana_data['x_j'][:, idx], 
+               label='Analytical', color=colors_ana[idx], linewidth=2)
+        ax.plot(dem_data['t'], dem_data['x_j'][:, idx], 
+               label='DEM', color=colors_dem[idx], linewidth=2, linestyle='--', marker='o', markersize=3)
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel(f'Position {comp} (m)')
+        ax.set_title(f'Particle j: Position {comp}')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+    
+    # Distance between particles (lower left spot)
+    ax = fig7.add_subplot(gs7[3, 0])
+    ana_distance = np.linalg.norm(ana_data['x_j'] - ana_data['x_i'], axis=1)
+    dem_distance = np.linalg.norm(dem_data['x_j'] - dem_data['x_i'], axis=1)
+    ax.plot(ana_data['t'], ana_distance, 
+           label='Analytical', color='purple', linewidth=2)
+    ax.plot(dem_data['t'], dem_distance, 
+           label='DEM', color='orange', linewidth=2, linestyle='--', marker='o', markersize=3)
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Distance (m)')
+    ax.set_title('Distance between particles |x_j - x_i|')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # Quaternion particle j - all 4 components in separate subplots
+    for idx in range(4):
+        ax = fig7.add_subplot(gs7[idx, 1])
+        ax.plot(ana_data['t'], ana_data['q_j'][:, idx], 
+               label='Analytical', color='blue', linewidth=2)
+        ax.plot(dem_data['t'], dem_data['q_j'][:, idx], 
+               label='DEM', color='red', linewidth=2, linestyle='--', marker='o', markersize=3)
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel(f'Quaternion {quat_components[idx]}')
+        ax.set_title(f'Particle j: Quaternion {quat_components[idx]}')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+    
+    fig7.suptitle(f'Test {test_id:02d}: Position and Orientation - Particle j', 
+                  fontsize=16, fontweight='bold')
+    fig7.savefig(os.path.join(output_dir, f'test_{test_id:02d}_position_orientation_j.png'), 
+                dpi=150, bbox_inches='tight')
+    plt.close(fig7)
+    
+    # ========================================================================
+    # PLOT 8: Error summary plot
+    # ========================================================================
+    fig8 = plt.figure(figsize=(16, 10))
+    gs8 = GridSpec(2, 2, figure=fig8, hspace=0.3, wspace=0.3)
     
     # Total force error magnitude (particle i)
-    ax = fig7.add_subplot(gs7[0, 0])
+    ax = fig8.add_subplot(gs8[0, 0])
     error_mag_i = np.linalg.norm(errors['F_i_abs'], axis=1)
     ax.plot(ana_data['t'], error_mag_i, color='red', linewidth=2)
     ax.set_xlabel('Time (s)')
@@ -460,7 +500,7 @@ def create_comparison_plots(ana_data, dem_data, errors, output_dir, test_id):
     ax.axhline(y=0, color='black', linestyle='--', alpha=0.5)
     
     # Total force error magnitude (particle j)
-    ax = fig7.add_subplot(gs7[0, 1])
+    ax = fig8.add_subplot(gs8[0, 1])
     error_mag_j = np.linalg.norm(errors['F_j_abs'], axis=1)
     ax.plot(ana_data['t'], error_mag_j, color='red', linewidth=2)
     ax.set_xlabel('Time (s)')
@@ -470,7 +510,7 @@ def create_comparison_plots(ana_data, dem_data, errors, output_dir, test_id):
     ax.axhline(y=0, color='black', linestyle='--', alpha=0.5)
     
     # Total torque error magnitude (particle i)
-    ax = fig7.add_subplot(gs7[1, 0])
+    ax = fig8.add_subplot(gs8[1, 0])
     error_mag_ti = np.linalg.norm(errors['T_i_abs'], axis=1)
     ax.plot(ana_data['t'], error_mag_ti, color='red', linewidth=2)
     ax.set_xlabel('Time (s)')
@@ -480,7 +520,7 @@ def create_comparison_plots(ana_data, dem_data, errors, output_dir, test_id):
     ax.axhline(y=0, color='black', linestyle='--', alpha=0.5)
     
     # Total torque error magnitude (particle j)
-    ax = fig7.add_subplot(gs7[1, 1])
+    ax = fig8.add_subplot(gs8[1, 1])
     error_mag_tj = np.linalg.norm(errors['T_j_abs'], axis=1)
     ax.plot(ana_data['t'], error_mag_tj, color='red', linewidth=2)
     ax.set_xlabel('Time (s)')
@@ -489,11 +529,11 @@ def create_comparison_plots(ana_data, dem_data, errors, output_dir, test_id):
     ax.grid(True, alpha=0.3)
     ax.axhline(y=0, color='black', linestyle='--', alpha=0.5)
     
-    fig7.suptitle(f'Test {test_id:02d}: Error Summary', 
+    fig8.suptitle(f'Test {test_id:02d}: Error Summary', 
                   fontsize=16, fontweight='bold')
-    fig7.savefig(os.path.join(output_dir, f'test_{test_id:02d}_error_summary.png'), 
+    fig8.savefig(os.path.join(output_dir, f'test_{test_id:02d}_error_summary.png'), 
                 dpi=150, bbox_inches='tight')
-    plt.close(fig7)
+    plt.close(fig8)
     
     print(f"✓ All plots saved to {output_dir}/")
 
@@ -546,11 +586,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python compare_outputs.py --testID 1
-  python compare_outputs.py --testID 2
+  python compare_outputs.py 1
+  python compare_outputs.py 2
         """
     )
-    parser.add_argument('--testID', type=int, required=True,
+    parser.add_argument('testID', type=int,
                        help='Test ID number (e.g., 1 for test_01)')
     
     args = parser.parse_args()
@@ -562,7 +602,7 @@ Examples:
     script_dir = Path(__file__).parent
     ana_file = script_dir / '..' / 'output_ANA' / f'theoretical_output_test_{test_id:02d}.csv'
     dem_file = script_dir / '..' / 'output_DEM' / f'dem_output_YADE_test_{test_id:02d}.csv'
-    output_dir = script_dir / 'comparison_plots'
+    output_dir = script_dir / 'figures'
     
     # Check if files exist
     if not ana_file.exists():

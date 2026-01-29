@@ -112,13 +112,39 @@ def my_simulate_motion(
     u_n = np.zeros((N,1))
     v_theta = np.zeros((N,3)); 
     v_r = np.zeros((N,3)); v_s = np.zeros((N,3))
+    
+    # # Intial positions and linear velocities for t = 0
+    # x_i[0] = x_b
+    # x_j[0] = x_b + l0
+    # v_i[0] = v_b + np.cross(omega_b, n0)
+    # v_j[0] = v_i[0] + np.cross(omega_b, l0) + np.cross(omega_b, n0)
+    # l_ij[0] = l0
+    # n_ij[0] = n0
+    # u_n[0] = max(R_i + R_j - norm_l0, 0.0)
+    # v_ijn[0] = (A - B * np.sin(phi) ) * n0
+
+    # # Initial angular velocities
+    # omegar_t = A_t - B_t * np.sin(phi_t)
+    # omegar_r = A_r - B_r * np.sin(phi_r)
+    # omegar_s = A_s - B_s * np.sin(phi_s)
+    # omega_i[0] = (omega_b
+    #                + 0.5 * omegar_t * n0
+    #                + 0.5/R_i * omegar_r * n_r
+    #                + 0.5/R_i * omegar_s * n_s)
+    # omega_j[0] = (omega_b
+    #                - 0.5 * omegar_t * n0
+    #                - 0.5/R_j * omegar_r * n_r
+    #                + 0.5/R_j * omegar_s * n_s)
+    # v_theta[0] = omegar_t * n0
+    # v_r[0] = omegar_r * np.cross(n_r, n0)
+    # v_s[0] = omegar_s * np.cross(n_s, n0)
 
     # Precompute constants
     denom = w**2 + k**2
     zero_k = np.isclose(k, 0)
     zero_w = np.isclose(w, 0)
 
-    for idx, ti in enumerate(t):
+    for idx, ti in enumerate(t): #t[1:], start=1
         # Body rotation, this works because omega_b is constant.
         Rb = Rotation.from_rotvec(omega_b * ti)
 
@@ -126,7 +152,7 @@ def my_simulate_motion(
         n_ij[idx] = Rb.apply(n0)
 
         # Compute relative normal velocity (Eq. 23)
-        v_ijn[idx] = A - B * np.sin(w * ti + phi) * np.exp(k * ti) * n_ij[idx]
+        v_ijn[idx] = (A - B * np.sin(w * ti + phi) * np.exp(k * ti)) * n_ij[idx]
 
         # Compute branch magnitude (Eq. 24)
         if zero_k and zero_w:
@@ -155,6 +181,7 @@ def my_simulate_motion(
         # Velocities (Eq. 3 and 4)
         v_i[idx] = v_b + np.cross(omega_b, x_i[idx])
         v_j[idx] = v_i[idx] + np.cross(omega_b, l_ij[idx]) + v_ijn[idx]
+        # Equivalently: v_j[idx] = v_b + np.cross(omega_b, x_j[idx]) + v_ijn[idx]
 
         # Angular velocities (Eq. 23)
         omegar_t = A_t - B_t * np.sin(w_t * ti + phi_t) * np.exp(k_t * ti)
@@ -215,7 +242,7 @@ def my_integrate_rotation(initial_quat, omega, dt):
     Returns:
     - quaternions: ndarray, shape (M, 4)
         Quaternion orientations [x, y, z, w] at each time including initial; 
-        M = nsteps + 1.
+        M = nsteps.
     """
     # Ensure numpy arrays
     omega = np.asarray(omega)

@@ -196,6 +196,29 @@ results = my_simulate_contact(
     Fn_spring_dashpot,
     Fs_spring_dashpot_Coulomb)
 
+import numpy as np
+# initial position (vector)
+x0 = np.asarray(results['x_j'][0])
+
+# velocities (Nt, 3)
+v = np.asarray(results['v_j'])
+
+# integrate velocity to get displacement
+# forward Euler: x_{n+1} = x_n + v_n * dt
+displacements = np.cumsum(v * dt, axis=0)
+
+# full position history
+x_j = x0 + displacements
+
+# magnitude of position vector at each timestep
+r = np.linalg.norm(x_j, axis=1)
+
+# subtract 1.95
+out = abs(r - 1.95)/1.95*100
+
+# print result
+print(np.mean(out))
+print(np.std(out))
 
 # Plotting motion
 plt.figure(0)

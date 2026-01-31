@@ -27,6 +27,10 @@ def dict_to_csv(dictionary,file):
 myGroups = {
     'x_i': ['x1', 'y1', 'z1'],
     'x_j': ['x2', 'y2', 'z2'],
+    'v_i': ['v1x', 'v1y', 'v1z'],
+    'v_j': ['v2x', 'v2y', 'v2z'],
+    'w_i': ['w1x', 'w1y', 'w1z'],
+    'w_j': ['w2x', 'w2y', 'w2z'],
     'q_i': ['qx1', 'qy1', 'qz1', 'qw1'],
     'q_j': ['qx2', 'qy2', 'qz2', 'qw2'],
     'F_i': ['f1x', 'f1y', 'f1z'],

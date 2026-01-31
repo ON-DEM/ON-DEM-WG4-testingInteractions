@@ -54,6 +54,10 @@ def my_analytical_motion(
       omega_b: (3,)
       v_s,v_r,v_theta: (N,3)
     """
+
+    # UPDATE: Add analytical computation of du_s du_r and d_theta.
+    # UPDATE: Add analytical accelerations.
+
     # Convert inputs to arrays
     x_b = np.asarray(x_b, float)
     v_b = np.asarray(v_b, float)

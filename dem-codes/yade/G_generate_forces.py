@@ -14,10 +14,9 @@ else:
 	print("Usage: yade generateForces.py <input_file> <output_file>")
 	exit()
       
-imposePos = False  # Whether to impose positions and orientations, or only velocities
-	
+imposePos = True  # Whether to impose positions and orientations, or only velocities
+
 # --- Load imposed state data from text file ---
-#velocity_data = np.loadtxt(inputFile, comments='#')  # shape (N, 7)
 imposed_data = json_to_dict(inputFile)
 
 # keys to exclude (do not import these)

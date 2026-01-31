@@ -18,13 +18,14 @@ if len(sys.argv) < 2:
 testID = int(sys.argv[1])
 testname = 'test_'+str(testID).zfill(2)
 doPlot = False
+Nsteps = 1.0e4
 
 # Generate velocities and motion profile
 R_i = 1.0
 R_j = 1.0
 R = (R_i + R_j)/2.0
 tmax = 6.0*np.pi
-dt = 6.0*np.pi/1.0e5
+dt = 6.0*np.pi/Nsteps
 if testID == 1:
     # Tangential elastic response
     motion = my_analytical_motion(
@@ -190,7 +191,7 @@ contact_params = {'k_n':    1.0e7,
                   'R_i':    R_i,
                   'R_j':    R_j}
 
-results = my_simulate_contact(
+results = my_analytical_contact(
     motion,
     contact_params,
     Fn_spring_dashpot,

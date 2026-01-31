@@ -42,6 +42,8 @@ def Fs_spring_dashpot_Coulomb(contact_params, motions, Fn):
     omega_b = np.asarray(motions['omega_b'], dtype=float)   # (N,3)
     dt      = np.array(motions['dt'], dtype=float)          # (1)
 
+    # UPDATE: du_s should be calculated analytically! We can do this.
+
     # Shear displacement increment per time step
     du_s = v_s * dt[:,None]
 

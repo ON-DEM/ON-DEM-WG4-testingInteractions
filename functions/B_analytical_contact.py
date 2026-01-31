@@ -3,10 +3,10 @@
 import numpy as np
 
 #
-#   SIMULATE THE CONTACT INTERACTION
+#   GENERATE THE CONTACT INTERACTION
 #
 
-def my_simulate_contact(motions, contact_params, Fn_func, Fs_func=None, Fr_func=None, Tt_func=None):
+def my_analytical_contact(motions, contact_params, Fn_func, Fs_func=None, Fr_func=None, Tt_func=None):
     """
     Generalised contact force batch processor.
 

@@ -95,8 +95,6 @@ def my_compare_results(sim_results, ana_results, tol=None):
 
     return report
 
-
-
 def my_check_all(report):
     for key in ['F_i', 'F_j', 'T_i', 'T_j']:
         all_ok = report[key]['all_pass']

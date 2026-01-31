@@ -2,13 +2,12 @@
 
 import numpy as np
 from scipy.spatial.transform import Rotation
-from D_helpers import *
 
 #
-#   SIMULATE MOTION OF TWO PARTICLES
+#   GENERATE MOTION OF TWO PARTICLES
 #
 
-def my_simulate_motion(
+def my_analytical_motion(
     x_b, v_b, omega_b,
     init_q_i, init_q_j,
     A, B, w, phi, k, l0,
@@ -112,32 +111,6 @@ def my_simulate_motion(
     u_n = np.zeros((N,1))
     v_theta = np.zeros((N,3)); 
     v_r = np.zeros((N,3)); v_s = np.zeros((N,3))
-    
-    # # Intial positions and linear velocities for t = 0
-    # x_i[0] = x_b
-    # x_j[0] = x_b + l0
-    # v_i[0] = v_b + np.cross(omega_b, n0)
-    # v_j[0] = v_i[0] + np.cross(omega_b, l0) + np.cross(omega_b, n0)
-    # l_ij[0] = l0
-    # n_ij[0] = n0
-    # u_n[0] = max(R_i + R_j - norm_l0, 0.0)
-    # v_ijn[0] = (A - B * np.sin(phi) ) * n0
-
-    # # Initial angular velocities
-    # omegar_t = A_t - B_t * np.sin(phi_t)
-    # omegar_r = A_r - B_r * np.sin(phi_r)
-    # omegar_s = A_s - B_s * np.sin(phi_s)
-    # omega_i[0] = (omega_b
-    #                + 0.5 * omegar_t * n0
-    #                + 0.5/R_i * omegar_r * n_r
-    #                + 0.5/R_i * omegar_s * n_s)
-    # omega_j[0] = (omega_b
-    #                - 0.5 * omegar_t * n0
-    #                - 0.5/R_j * omegar_r * n_r
-    #                + 0.5/R_j * omegar_s * n_s)
-    # v_theta[0] = omegar_t * n0
-    # v_r[0] = omegar_r * np.cross(n_r, n0)
-    # v_s[0] = omegar_s * np.cross(n_s, n0)
 
     # Precompute constants
     denom = w**2 + k**2
@@ -266,19 +239,21 @@ def my_integrate_rotation(initial_quat, omega, dt):
     
     return quats
 
-def write_DEM_input(results,filename='dem_input.txt'):
-    """
-    Write the DEM inputs to a file. The input can a dictionnary produced by my_simulate_motion or my_simulate_contact.
-    The file will contain the time series of translational and angular velocities
-    """
-    demInputs = {k: results[k] for k in ['t', 'v_i', 'v_j', 'omega_i', 'omega_j']}
+# UPDATE: This function is now obsolete.
+# def write_DEM_input(results,filename='dem_input.csv'):
+#     """
+#     Write the DEM inputs to a file. The input can be a dictionnary produced by my_simulate_motion or my_simulate_contact.
+#     The file will contain the time series of translational and angular velocities
+#     """
 
-    file = open(filename, 'w')
-    # Should be able to take out x_i at t0 for init positions.
-    file.write("# initial position/orientation as X1,R1,X2,R2,Q1,Q2 (vector/quaternion)\n"
-            "# init: 0 0 0 1 2 0 0 1 0 0 1 0 0 0 1 0\n"
-            "# # Times series of translational and angular velocities)\n")
-    dict_to_csv(demInputs, file)
-    file.close()
+#     demInputs = {k: results[k] for k in ['t', 'v_i', 'v_j', 'omega_i', 'omega_j']}
+
+#     file = open(filename, 'w')
+#     # Should be able to take out x_i at t0 for init positions.
+#     file.write("# initial position/orientation as X1,R1,X2,R2,Q1,Q2 (vector/quaternion)\n"
+#             "# init: 0 0 0 1 2 0 0 1 0 0 1 0 0 0 1 0\n"
+#             "# # Times series of translational and angular velocities)\n")
+#     dict_to_csv(demInputs, file)
+#     file.close()
 
 # End of file

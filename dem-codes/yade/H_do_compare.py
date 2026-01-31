@@ -5,7 +5,7 @@ import numpy as np
 
 sys.path.append('../../functions')
 
-from E_analyse_functions import *
+from E_compare_functions import *
 from D_helpers import *
 
 # Get testID from command line argument
@@ -20,7 +20,6 @@ testname = f'test_{testID:02d}'
 yadePath = '../../../../LS-DEM-dev/install-dev/bin/yade-2026-01-26.git-4c8f5a2'
 
 # Construct file paths
-input_dem_file = f'../../input_DEM/dem_input_{testname}.csv'
 output_ana_file = f'../../output_ANA/theoretical_output_{testname}.json'
 output_dem_file = f'../../output_DEM/dem_output_YADE_{testname}.csv'
 output_report_file = f'../../output_REPORT/comparison_report_{testname}.txt'
@@ -30,7 +29,7 @@ os.makedirs('../../output_DEM', exist_ok=True)
 os.makedirs('../../output_REPORT', exist_ok=True)
 
 # Run YADE simulation with input file
-subprocess.run([yadePath,'-nx', 'G_generate_forces.py', input_dem_file, output_dem_file], check=True)
+subprocess.run([yadePath,'-nx', 'G_generate_forces.py', output_ana_file, output_dem_file], check=True)
 
 # Load reference (analytical) results
 ref = json_to_dict(output_ana_file)

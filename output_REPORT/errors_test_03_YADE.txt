@@ -1,14 +1,14 @@
 % Error metrics for Test 3 using YADE
 \begin{tabular}{lcc}
 \hline
-Quantity & MAPE$_i$ (\%) & MAPE$_j$ (\%) \\
+Quantity & Particle $i$ & Particle $j$ \\
 \hline
 Position $\vec{x}$ & $<10^{-14}$ & $<10^{-14}$ \\
 Velocity $\vec{v}$ & $<10^{-14}$ & $<10^{-14}$ \\
 Orientation $\vec{q}$ & $<10^{-14}$ & $<10^{-14}$ \\
-Angular velocity $\vec{\omega}$ & $<10^{-14}$ & $<10^{-14}$ \\
-Force $\vec{F}$ & 2.03e-14 & 2.03e-14 \\
-Torque $\vec{T}$ & 2.65e-14 & 2.65e-14 \\
+Ang. velocity $\vec{\omega}$ & $<10^{-14}$ & $<10^{-14}$ \\
+Force $\vec{F}$ & 0.000533 & 0.000533 \\
+Torque $\vec{T}$ & 0.00535 & 0.00535 \\
 \hline
 Force inbalance & \multicolumn{2}{c}{$<10^{-14}$} \\
 Torque inbalance & \multicolumn{2}{c}{$<10^{-14}$} \\

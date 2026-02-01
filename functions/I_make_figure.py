@@ -13,6 +13,10 @@ from mpl_toolkits.mplot3d import Axes3D
 import sys
 from pathlib import Path
 
+# Import helper functions
+sys.path.append('../../functions')
+from D_helpers import json_to_dict, load_grouped_csv
+
 # Set high-quality plotting parameters
 plt.rcParams['font.family'] = 'serif'
 plt.rcParams['font.size'] = 9
@@ -26,39 +30,6 @@ plt.rcParams['patch.linewidth'] = 0.8
 COLOR_ANA = '#4B0082'  # Dark purple
 COLOR_DEM = (0.1020, 0.8000, 0.1020)  # Light green
 COLOR_ZERO = 'black'
-
-
-def load_theoretical_data(filepath):
-    """Load theoretical output data from CSV file."""
-    data = np.loadtxt(filepath, comments='#')
-    
-    result = {}
-    col = 0
-    result['t'] = data[:, col]; col += 1
-    result['dt'] = data[:, col]; col += 1
-    result['x_i'] = data[:, col:col+3]; col += 3
-    result['x_j'] = data[:, col:col+3]; col += 3
-    result['v_i'] = data[:, col:col+3]; col += 3
-    result['v_j'] = data[:, col:col+3]; col += 3
-    result['q_i'] = data[:, col:col+4]; col += 4
-    result['q_j'] = data[:, col:col+4]; col += 4
-    result['omega_i'] = data[:, col:col+3]; col += 3
-    result['omega_j'] = data[:, col:col+3]; col += 3
-    col += 3  # skip omega_b
-    col += 3  # skip n_ij
-    col += 3  # skip v_ijn
-    col += 3  # skip l_ij
-    col += 1  # skip u_n
-    col += 3  # skip v_s
-    col += 3  # skip v_r
-    col += 3  # skip v_theta
-    result['F_i'] = data[:, col:col+3]; col += 3
-    result['F_j'] = data[:, col:col+3]; col += 3
-    result['T_i'] = data[:, col:col+3]; col += 3
-    result['T_j'] = data[:, col:col+3]; col += 3
-    
-    return result
-
 
 def load_dem_data(filepath):
     """Load DEM output data from CSV file."""
@@ -85,7 +56,6 @@ def load_dem_data(filepath):
     result['T_j'] = data[:, 36:39]    # t2x, t2y, t2z
     
     return result
-
 
 def downsample_data(data, target_points=70):
     """Downsample data to approximately target_points."""
@@ -131,7 +101,11 @@ def compute_error_metrics(ana_data, dem_data):
     else:
         n = n_ana
     
-    t_max = ana_data['t'][n-1]
+    # Handle both 1D and 2D time arrays
+    t_ana = ana_data['t']
+    if t_ana.ndim > 1:
+        t_ana = t_ana.flatten()
+    t_max = t_ana[n-1]
     
     metrics = {}
     
@@ -231,22 +205,23 @@ def write_latex_table(metrics, test_id, software_label, output_dir):
         f.write(f"% Error metrics for Test {test_id} using {software_label}\n")
         f.write("\\begin{tabular}{lcc}\n")
         f.write("\\hline\n")
-        f.write("Quantity & MAPE$_i$ (\\%) & MAPE$_j$ (\\%) \\\\\n")
+        f.write("Quantity & Particle $i$ & Particle $j$ \\\\\n")
         f.write("\\hline\n")
         
-        # Write regular quantities (multiply by 100 for MAPE)
         for name in ['Position', 'Velocity', 'Orientation', 'Angular velocity', 'Force', 'Torque']:
             m = metrics[name]
-            # Format values, showing "< 1e-16" for values below machine precision
             val_i = m['ER_NORM_i'] * 100
             val_j = m['ER_NORM_j'] * 100
+            
+            # Format values, using scientific notation for very small numbers
             str_i = f"{val_i:.3g}" if val_i >= 1e-14 else r"$<10^{-14}$"
             str_j = f"{val_j:.3g}" if val_j >= 1e-14 else r"$<10^{-14}$"
+            
             f.write(f"{quantity_latex[name]} & {str_i} & {str_j} \\\\\n")
         
         f.write("\\hline\n")
         
-        # Write balance quantities (multiply by 100 for MAPE)
+        # Force and torque balance
         val_F = metrics['Force balance']['ER_NORM'] * 100
         val_T = metrics['Torque balance']['ER_NORM'] * 100
         str_F = f"{val_F:.3g}" if val_F >= 1e-14 else r"$<10^{-14}$"
@@ -265,12 +240,20 @@ def plot_test_1_2(ana_data, dem_data_ds, test_id, output_dir):
     """Plot x force component vs time for Tests 1 and 2."""
     fig, ax = plt.subplots(figsize=(3.2, 2.4))
     
+    # Handle both 1D and 2D time arrays
+    t_ana = ana_data['t']
+    if t_ana.ndim > 1:
+        t_ana = t_ana.flatten()
+    t_dem = dem_data_ds['t']
+    if t_dem.ndim > 1:
+        t_dem = t_dem.flatten()
+    
     # Plot analytical data
-    ax.plot(ana_data['t'], ana_data['F_i'][:, 0], 
+    ax.plot(t_ana, ana_data['F_i'][:, 0], 
            color=COLOR_ANA, linewidth=1.5, zorder=1)
     
     # Plot DEM data (downsampled)
-    ax.plot(dem_data_ds['t'], dem_data_ds['F_i'][:, 0], 
+    ax.plot(t_dem, dem_data_ds['F_i'][:, 0], 
            'o', color=COLOR_DEM, markersize=3, markerfacecolor=COLOR_DEM, 
            markeredgewidth=0.3, markeredgecolor='black', zorder=2)
     
@@ -283,7 +266,7 @@ def plot_test_1_2(ana_data, dem_data_ds, test_id, output_dir):
     # Formatting
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('$F_{i,x}$ (N)')
-    ax.set_xlim(0, ana_data['t'][-1])
+    ax.set_xlim(0, t_ana[-1])
     
     # Use scientific notation if values exceed 1000
     max_val = max(abs(ana_data['F_i'][:, 0].max()), abs(ana_data['F_i'][:, 0].min()))
@@ -308,17 +291,25 @@ def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir):
     fig = plt.figure(figsize=(3.5, 3.0))
     ax = fig.add_subplot(111, projection='3d')
     
+    # Handle both 1D and 2D time arrays
+    t_ana = ana_data['t']
+    if t_ana.ndim > 1:
+        t_ana = t_ana.flatten()
+    t_dem = dem_data_ds['t']
+    if t_dem.ndim > 1:
+        t_dem = t_dem.flatten()
+    
     # Get component indices
     comp_map = {'x': 0, 'y': 1, 'z': 2}
     idx1 = comp_map[comp1]
     idx2 = comp_map[comp2]
     
     # Plot analytical data
-    ax.plot(ana_data['t'], ana_data['F_i'][:, idx1], ana_data['F_i'][:, idx2],
+    ax.plot(t_ana, ana_data['F_i'][:, idx1], ana_data['F_i'][:, idx2],
            color=COLOR_ANA, linewidth=1.5, zorder=1)
     
     # Plot DEM data (downsampled)
-    ax.scatter(dem_data_ds['t'], dem_data_ds['F_i'][:, idx1], dem_data_ds['F_i'][:, idx2],
+    ax.scatter(t_dem, dem_data_ds['F_i'][:, idx1], dem_data_ds['F_i'][:, idx2],
               c=[COLOR_DEM], s=20, edgecolors='black', linewidths=0.3, zorder=2)
     
     # Grid
@@ -330,7 +321,7 @@ def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir):
     ax.set_zlabel(f'$F_{{i,{comp2}}}$ (N)')
     
     # Set time axis limits tightly
-    ax.set_xlim(0, ana_data['t'][-1])
+    ax.set_xlim(0, t_ana[-1])
     
     # Set force axis limits to round numbers that fit the data + 10% margin
     def get_nice_limits(data):
@@ -415,7 +406,7 @@ def main():
     
     # Set up paths
     script_dir = Path(__file__).parent
-    ana_file = script_dir / '..' / 'output_ANA' / f'theoretical_output_test_{test_id:02d}.csv'
+    ana_file = script_dir / '..' / 'output_ANA' / f'theoretical_output_test_{test_id:02d}.json'
     dem_file = script_dir / '..' / 'output_DEM' / f'dem_output_{software_label}_test_{test_id:02d}.csv'
     report_dir = script_dir / '..' / 'output_REPORT'
     output_dir = script_dir / '..' / 'figures' 
@@ -432,8 +423,8 @@ def main():
     print(f"  Analytical: {ana_file.name}")
     print(f"  DEM:        {dem_file.name}")
     
-    # Load data
-    ana_data = load_theoretical_data(str(ana_file))
+    # Load data using helper functions
+    ana_data = json_to_dict(str(ana_file))
     dem_data = load_dem_data(str(dem_file))
     
     print(f"✓ Loaded {len(ana_data['t'])} analytical points")

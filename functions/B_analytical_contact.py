@@ -24,14 +24,19 @@ def my_analytical_contact(motions, contact_params, Fn_func, Fs_func=None, Fr_fun
             't'      : (N,1) time array
             'x_i','x_j' : (N,3) position arrays
             'v_i','v_j' : (N,3) velocity arrays
+            'a_i','a_j': (N,3) acceleration arrays
             'q_i','q_j' : (N,4) orientation quaternions
             'omega_i','omega_j': (N,3) angular vel arrays
             'n_ij'   : (N,3) contact normals
             'v_ijn'  : (N,3) normal component of rel vel
+            'a_ijn'  : (N,3) normal component of rel acc
             'l_ij'   : (N,3) center-center branch vector
             'v_s'    : (N,3) tangential component of rel vel
             'v_r'    : (N,3) rolling component of rel vel
             'v_theta': (N,3) twist component of rel vel
+            'du_s' : (N,3) shear displacement increment
+            'du_r' : (N,3) roll displacement increment
+            'du_theta': (N,3) twist displacement increment
     Fn_func : callable
         Function to compute normal force:
             Fn = Fn_func(contact_params, motions)

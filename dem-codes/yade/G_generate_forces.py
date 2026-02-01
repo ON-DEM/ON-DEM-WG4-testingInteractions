@@ -20,7 +20,8 @@ imposePos = True  # Whether to impose positions and orientations, or only veloci
 imposed_data = json_to_dict(inputFile)
 
 # keys to exclude (do not import these)
-_exclude = {'omega_b', 'n_ij', 'v_ijn', 'l_ij', 'u_n', 'v_s', 'v_r', 'v_theta'}
+_exclude = {'omega_b', 'n_ij', 'v_ijn', 'a_ijn', 'l_ij',
+            'u_n', 'v_s', 'v_r', 'v_theta','du_s','du_r','du_theta'}
 
 # build selected dict with everything except the excluded keys
 selected = {k: v for k, v in imposed_data.items() if k not in _exclude}
@@ -38,6 +39,8 @@ x_i       = as_np('x_i')              # expected shape (N,3)
 x_j       = as_np('x_j')              # expected shape (N,3)
 v_i       = as_np('v_i')              # expected shape (N,3)
 v_j       = as_np('v_j')              # expected shape (N,3)
+a_i       = as_np('a_i')              # expected shape (N,3)
+a_j       = as_np('a_j')              # expected shape (N,3)
 q_i       = as_np('q_i')              # expected shape (N,4) qx,qy,qz,qw
 q_j       = as_np('q_j')              # expected shape (N,4)
 omega_i   = as_np('omega_i')  		  # expected shape (N,3)

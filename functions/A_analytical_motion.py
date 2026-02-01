@@ -48,11 +48,13 @@ def my_analytical_motion(
       t: (N,1)
       x_i,x_j: (N,3)
       v_i,v_j: (N,3)
+      a_i,a_j: (N,3)
       q_i,q_j: (N,4)
       omega_i,omega_j: (N,3)
-      n_ij,v_ijn,l_ij: (N,3)
+      n_ij,v_ijn,a_ijn,l_ij: (N,3)
       omega_b: (3,)
       v_s,v_r,v_theta: (N,3)
+      du_s,du_r,du_theta: (N,3)
     """
 
     # UPDATE: Add analytical computation of du_s du_r and d_theta.
@@ -109,17 +111,35 @@ def my_analytical_motion(
     # Preallocate time-series arrays
     x_i = np.zeros((N,3)); x_j = np.zeros((N,3))
     v_i = np.zeros((N,3)); v_j = np.zeros((N,3))
+    a_i = np.zeros((N,3)); a_j = np.zeros((N,3))
     omega_i = np.zeros((N,3)); omega_j = np.zeros((N,3))
-    n_ij = np.zeros((N,3)); v_ijn = np.zeros((N,3))
+    n_ij = np.zeros((N,3)); v_ijn = np.zeros((N,3)); a_ijn = np.zeros((N,3))
     l_ij = np.zeros((N,3))
     u_n = np.zeros((N,1))
     v_theta = np.zeros((N,3)); 
-    v_r = np.zeros((N,3)); v_s = np.zeros((N,3))
+    v_theta = np.zeros((N,3)); du_theta = np.zeros((N,3))
+    v_r = np.zeros((N,3)); du_r = np.zeros((N,3))
+    v_s = np.zeros((N,3)); du_s = np.zeros((N,3))
 
     # Precompute constants
     denom = w**2 + k**2
     zero_k = np.isclose(k, 0)
     zero_w = np.isclose(w, 0)
+
+    # Precompute constants for twist angular velocity
+    denom_t = w_t**2 + k_t**2
+    zero_k_t = np.isclose(k_t, 0)
+    zero_w_t = np.isclose(w_t, 0)
+
+    # Precompute constants for roll angular velocity
+    denom_r = w_r**2 + k_r**2
+    zero_k_r = np.isclose(k_r, 0)
+    zero_w_r = np.isclose(w_r, 0)
+
+    # Precompute constants for shear angular velocity
+    denom_s = w_s**2 + k_s**2
+    zero_k_s = np.isclose(k_s, 0)
+    zero_w_s = np.isclose(w_s, 0)
 
     for idx, ti in enumerate(t):
         # Body rotation, this works because omega_b is constant.
@@ -130,6 +150,10 @@ def my_analytical_motion(
 
         # Compute relative normal velocity (Eq. 23)
         v_ijn[idx] = (A - B * np.sin(w * ti + phi) * np.exp(k * ti)) * n_ij[idx]
+
+        # Compute relative normal acceleration (Eq. 26)
+        a_ijn[idx] = -B * np.exp(k * ti) * (w * np.cos(w * ti + phi) + k * np.sin(w * ti + phi)) * n_ij[idx]
+
 
         # Compute branch magnitude (Eq. 24)
         if zero_k and zero_w:
@@ -160,6 +184,15 @@ def my_analytical_motion(
         v_j[idx] = v_i[idx] + np.cross(omega_b, l_ij[idx]) + v_ijn[idx]
         # Equivalently: v_j[idx] = v_b + np.cross(omega_b, x_j[idx]) + v_ijn[idx]
 
+        # Accelerations
+        # a_i = omega_b × (omega_b × x_i)
+        a_i[idx] = np.cross(omega_b, np.cross(omega_b, x_i[idx]))
+        # a_j = a_i + a_ijn + 2*v_ijn*(omega_b × n_ij) + |l_ij|*omega_b × (omega_b × n_ij)
+        a_j[idx] = (a_i[idx] 
+                    + a_ijn[idx] 
+                    + 2 * np.linalg.norm(v_ijn[idx]) * np.cross(omega_b, n_ij[idx])
+                    + mag * np.cross(omega_b, np.cross(omega_b, n_ij[idx])))
+
         # Angular velocities (Eq. 23)
         omegar_t = A_t - B_t * np.sin(w_t * ti + phi_t) * np.exp(k_t * ti)
         omegar_r = A_r - B_r * np.sin(w_r * ti + phi_r) * np.exp(k_r * ti)
@@ -180,6 +213,70 @@ def my_analytical_motion(
         v_theta[idx] = omegar_t * n_ij[idx]
         v_r[idx] = omegar_r * np.cross(nr_r, n_ij[idx])
         v_s[idx] = omegar_s * np.cross(nr_s, n_ij[idx])
+
+        # Compute analytical displacement increments over last timestep
+        if idx == 0:
+            # First timestep: no previous timestep exists, so increments are zero
+            du_theta[idx] = 0.0
+            du_r[idx] = np.zeros(3)
+            du_s[idx] = np.zeros(3)
+        else:
+            # Compute integral of angular velocities over [t_{i-1}, t_i]
+            t_prev = t[idx-1]
+            
+            # Twist displacement increment (scalar, integrated along n_ij direction)
+            if zero_k_t and zero_w_t:
+                du_theta_mag = A_t * dt - B_t * dt * np.sin(phi_t)
+            elif zero_k_t:
+                du_theta_mag = A_t * dt - (B_t / w_t) * (np.cos(w_t * t_prev + phi_t) - np.cos(w_t * ti + phi_t))
+            elif zero_w_t:
+                du_theta_mag = A_t * dt - (B_t / k_t) * np.sin(phi_t) * (np.exp(k_t * ti) - np.exp(k_t * t_prev))
+            else:
+                du_theta_mag = (A_t * dt
+                               - (B_t / denom_t) 
+                               * (
+                                   ( k_t * np.sin(w_t * ti + phi_t) + w_t * np.cos(w_t * ti + phi_t) ) 
+                                   * np.exp(k_t * ti)
+                                   - ( k_t * np.sin(w_t * t_prev + phi_t) + w_t * np.cos(w_t * t_prev + phi_t) )
+                                   * np.exp(k_t * t_prev)
+                               ))
+            du_theta[idx] = du_theta_mag * n_ij[idx]
+
+            # Roll displacement increment (vector)
+            if zero_k_r and zero_w_r:
+                du_r_mag = A_r * dt - B_r * dt * np.sin(phi_r)
+            elif zero_k_r:
+                du_r_mag = A_r * dt - (B_r / w_r) * (np.cos(w_r * t_prev + phi_r) - np.cos(w_r * ti + phi_r))
+            elif zero_w_r:
+                du_r_mag = A_r * dt - (B_r / k_r) * np.sin(phi_r) * (np.exp(k_r * ti) - np.exp(k_r * t_prev))
+            else:
+                du_r_mag = (A_r * dt
+                           - (B_r / denom_r) 
+                           * (
+                               ( k_r * np.sin(w_r * ti + phi_r) + w_r * np.cos(w_r * ti + phi_r) ) 
+                               * np.exp(k_r * ti)
+                               - ( k_r * np.sin(w_r * t_prev + phi_r) + w_r * np.cos(w_r * t_prev + phi_r) )
+                               * np.exp(k_r * t_prev)
+                           ))
+            du_r[idx] = du_r_mag * np.cross(nr_r, n_ij[idx])
+
+            # Shear displacement increment (vector)
+            if zero_k_s and zero_w_s:
+                du_s_mag = A_s * dt - B_s * dt * np.sin(phi_s)
+            elif zero_k_s:
+                du_s_mag = A_s * dt - (B_s / w_s) * (np.cos(w_s * t_prev + phi_s) - np.cos(w_s * ti + phi_s))
+            elif zero_w_s:
+                du_s_mag = A_s * dt - (B_s / k_s) * np.sin(phi_s) * (np.exp(k_s * ti) - np.exp(k_s * t_prev))
+            else:
+                du_s_mag = (A_s * dt
+                           - (B_s / denom_s) 
+                           * (
+                               ( k_s * np.sin(w_s * ti + phi_s) + w_s * np.cos(w_s * ti + phi_s) ) 
+                               * np.exp(k_s * ti)
+                               - ( k_s * np.sin(w_s * t_prev + phi_s) + w_s * np.cos(w_s * t_prev + phi_s) )
+                               * np.exp(k_s * t_prev)
+                           ))
+            du_s[idx] = du_s_mag * np.cross(nr_s, n_ij[idx])
     
     # Compute normal overlap (Eq. 12)
     l_mag = np.linalg.norm(l_ij, axis=1)
@@ -195,10 +292,12 @@ def my_analytical_motion(
         't': t.reshape(-1,1),'dt':[dt]*len(t),
         'x_i': x_i, 'x_j': x_j,
         'v_i': v_i, 'v_j': v_j,
+        'a_i': a_i, 'a_j': a_j,
         'q_i': q_i, 'q_j': q_j,
         'omega_i': omega_i, 'omega_j': omega_j, 'omega_b': [omega_b]*len(t),
-        'n_ij': n_ij, 'v_ijn': v_ijn, 'l_ij': l_ij,
-        'u_n': u_n, 'v_s': v_s, 'v_r': v_r, 'v_theta': v_theta
+        'n_ij': n_ij, 'v_ijn': v_ijn, 'a_ijn': a_ijn, 'l_ij': l_ij,
+        'u_n': u_n, 'v_s': v_s, 'v_r': v_r, 'v_theta': v_theta,
+        'du_s': du_s, 'du_r': du_r, 'du_theta': du_theta
     }
     return motions
 
@@ -242,22 +341,5 @@ def my_integrate_rotation(initial_quat, omega, dt):
         quats[i + 1] = (orientation.as_quat()).copy()
     
     return quats
-
-# UPDATE: This function is now obsolete.
-# def write_DEM_input(results,filename='dem_input.csv'):
-#     """
-#     Write the DEM inputs to a file. The input can be a dictionnary produced by my_simulate_motion or my_simulate_contact.
-#     The file will contain the time series of translational and angular velocities
-#     """
-
-#     demInputs = {k: results[k] for k in ['t', 'v_i', 'v_j', 'omega_i', 'omega_j']}
-
-#     file = open(filename, 'w')
-#     # Should be able to take out x_i at t0 for init positions.
-#     file.write("# initial position/orientation as X1,R1,X2,R2,Q1,Q2 (vector/quaternion)\n"
-#             "# init: 0 0 0 1 2 0 0 1 0 0 1 0 0 0 1 0\n"
-#             "# # Times series of translational and angular velocities)\n")
-#     dict_to_csv(demInputs, file)
-#     file.close()
 
 # End of file

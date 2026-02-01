@@ -39,13 +39,9 @@ def Fs_spring_dashpot_Coulomb(contact_params, motions, Fn):
     mu      = contact_params['mu']                          # (1)
     u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
     v_s     = np.array(motions['v_s'], dtype=float)         # (N,3)
+    du_s    = np.array(motions['du_s'], dtype=float)        # (N,3) - over the last time step
     omega_b = np.asarray(motions['omega_b'], dtype=float)   # (N,3)
     dt      = np.array(motions['dt'], dtype=float)          # (1)
-
-    # UPDATE: du_s should be calculated analytically! We can do this.
-
-    # Shear displacement increment per time step
-    du_s = v_s * dt[:,None]
 
     # Test for contact
     mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
@@ -116,11 +112,9 @@ def Fs_spring_dashpot_Coulomb_ext(contact_params, motions, Fn):
     mu      = contact_params['mu']                          # (1)
     u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
     v_s     = np.array(motions['v_s'], dtype=float)         # (N,3)
+    du_s    = np.array(motions['du_s'], dtype=float)        # (N,3) - over the last time step
     omega_b = np.asarray(motions['omega_b'], dtype=float)   # (N,3)
     dt      = np.array(motions['dt'], dtype=float)          # (1)
-
-    # Shear displacement increment per time step
-    du_s = v_s * dt[:,None]
 
     # Test for contact
     mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
@@ -190,11 +184,9 @@ def Fr_spring_dashpot_Coulomb(contact_params, motions, Fn):
     mu      = contact_params['mu']                          # (1)
     u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
     v_r     = np.array(motions['v_r'], dtype=float)         # (N,3)
+    du_r    = np.array(motions['du_r'], dtype=float)        # (N,3) - over the last time step
     omega_b = np.asarray(motions['omega_b'], dtype=float)   # (N,3)
     dt      = np.array(motions['dt'], dtype=float)          # (1)
-
-    # Rolling displacement increment per time step
-    du_r = v_r * dt[:,None]
 
     # Test for contact
     mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
@@ -269,6 +261,7 @@ def Tt_spring_dashpot_Coulomb(contact_params, motions, Fn):
     u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
     n_ij    = np.array(motions['n_ij'], dtype=float)        # (N,3)
     v_theta = np.asarray(motions['v_theta'], dtype=float)   # (N,3)
+    du_theta = np.array(motions['du_theta'], dtype=float)   # (N,3) - over the last time step
     dt      = np.array(motions['dt'], dtype=float)          # (1)
 
     # Test for contact
@@ -291,12 +284,9 @@ def Tt_spring_dashpot_Coulomb(contact_params, motions, Fn):
         else:
             # Retrieve elastic component previous twisting torque
             Tt_tmp = Tt_old
-
-            # Angular increment this time step (theta accumulated)
-            omega = v_theta[i]*dt[i]
             
             # Integrate increment
-            Tt_tmp -= k_t * omega
+            Tt_tmp -= k_t * du_theta[i]
             
             # Apply Coulomb limit
             Tt_mag = np.linalg.norm(Tt_tmp)

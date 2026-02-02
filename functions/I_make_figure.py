@@ -3,14 +3,14 @@
 High-quality figure generation script for DEM vs analytical comparison.
 
 Usage:
-    python3 I_make_figure_pub.py YADE 1
-    python3 I_make_figure_pub.py SOFTWARE_LABEL TEST_ID
+    python3 I_make_figure.py YADE 1
+    python3 I_make_figure.py SOFTWARE_LABEL TEST_ID
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import sys
+import sys, math
 from pathlib import Path
 
 # Import helper functions
@@ -187,6 +187,41 @@ def compute_error_metrics(ana_data, dem_data):
     return metrics
 
 
+def sci_str_latex(val, sig=3, thresh=1e-14):
+    """
+    Return a LaTeX-formatted scientific notation string, e.g. "$1.23\\times10^{-04}$".
+    - sig: significant digits (>=1).
+    - thresh: absolute-magnitude threshold below which we print "<1.0\\times10^{exp}".
+    """
+    if math.isnan(val):
+        return r"\text{nan}"
+    if math.isinf(val):
+        return r"\infty" if val > 0 else r"-\infty"
+
+    if abs(val) < thresh:
+        # Preserve the machine-precision indicator exactly as requested
+        exp_thresh = int(math.log10(thresh))
+        return rf"$<1.0\times10^{{{exp_thresh}}}$"
+
+    sign = "-" if val < 0 else ""
+    s = f"{abs(val):.{sig}e}"          # e-format using sig significant digits, e.g. "1.234e-04"
+    mantissa_str, exp_str = s.split("e")
+    mantissa = float(mantissa_str)
+    exp = int(exp_str)
+
+    # decimal places = sig-1 because mantissa is in [1,10)
+    dec_places = max(sig - 1, 0)
+    mantissa_fmt = f"{mantissa:.{dec_places}f}"
+
+    # Handle rare rounding case where mantissa becomes 10.0 after formatting
+    if float(mantissa_fmt) >= 10.0:
+        mantissa = mantissa / 10.0
+        exp += 1
+        mantissa_fmt = f"{mantissa:.{dec_places}f}"
+
+    return rf"${sign}{mantissa_fmt}\times10^{{{exp}}}$"
+
+
 def write_latex_table(metrics, test_id, software_label, output_dir):
     """Write error metrics to LaTeX table."""
     filename = output_dir / f'errors_test_{test_id:02d}_{software_label}.txt'
@@ -205,7 +240,7 @@ def write_latex_table(metrics, test_id, software_label, output_dir):
         f.write(f"% Error metrics for Test {test_id} using {software_label}\n")
         f.write("\\begin{tabular}{lcc}\n")
         f.write("\\hline\n")
-        f.write("Quantity & Particle $i$ & Particle $j$ \\\\\n")
+        f.write("Quantity & MAPE$_i$ (\\%) & MAPE$_j$ (\\%) \\\\\n")
         f.write("\\hline\n")
         
         for name in ['Position', 'Velocity', 'Orientation', 'Angular velocity', 'Force', 'Torque']:
@@ -214,8 +249,10 @@ def write_latex_table(metrics, test_id, software_label, output_dir):
             val_j = m['ER_NORM_j'] * 100
             
             # Format values, using scientific notation for very small numbers
-            str_i = f"{val_i:.3g}" if val_i >= 1e-14 else r"$<10^{-14}$"
-            str_j = f"{val_j:.3g}" if val_j >= 1e-14 else r"$<10^{-14}$"
+            #str_i = f"{val_i:.3g}" if val_i >= 1e-14 else r"$<10^{-14}$"
+            #str_j = f"{val_j:.3g}" if val_j >= 1e-14 else r"$<10^{-14}$"
+            str_i = sci_str_latex(val_i, sig=3, thresh=1e-14)
+            str_j = sci_str_latex(val_j, sig=3, thresh=1e-14)
             
             f.write(f"{quantity_latex[name]} & {str_i} & {str_j} \\\\\n")
         
@@ -224,8 +261,10 @@ def write_latex_table(metrics, test_id, software_label, output_dir):
         # Force and torque balance
         val_F = metrics['Force balance']['ER_NORM'] * 100
         val_T = metrics['Torque balance']['ER_NORM'] * 100
-        str_F = f"{val_F:.3g}" if val_F >= 1e-14 else r"$<10^{-14}$"
-        str_T = f"{val_T:.3g}" if val_T >= 1e-14 else r"$<10^{-14}$"
+        #str_F = f"{val_F:.3g}" if val_F >= 1e-14 else r"$<10^{-14}$"
+        #str_T = f"{val_T:.3g}" if val_T >= 1e-14 else r"$<10^{-14}$"
+        str_F = sci_str_latex(val_F, sig=3, thresh=1e-14)
+        str_T = sci_str_latex(val_T, sig=3, thresh=1e-14)
         
         f.write(f"Force inbalance & \\multicolumn{{2}}{{c}}{{{str_F}}} \\\\\n")
         f.write(f"Torque inbalance & \\multicolumn{{2}}{{c}}{{{str_T}}} \\\\\n")

@@ -11,7 +11,7 @@ if len(sys.argv) > 2:
 	inputFile = sys.argv[1]
 	outputFile = sys.argv[2]
 else:
-	print("Usage: yade generateForces.py <input_file> <output_file>")
+	print("Usage: yade G_generate_forces.py <input_file> <output_file>")
 	exit()
       
 imposePos = True  # Whether to impose positions and orientations, or only velocities

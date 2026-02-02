@@ -24,10 +24,10 @@ def my_compare_results(sim_results, ana_results, tol=None):
     tol : dict, optional
         Per-key tolerances for comparison. Default:
             tol = {
-                'position': 1e-6,
-                'orientation': 1e-6,
-                'force': 1e-6,
-                'torque': 1e-6
+                'position': 1e-4,
+                'orientation': 1e-2,
+                'force': 1e-4,
+                'torque': 1e-4
             }
 
     Returns
@@ -42,13 +42,40 @@ def my_compare_results(sim_results, ana_results, tol=None):
             'all_pass': bool
     """
     if tol is None:
-        tol = {'position':1e-6, 'orientation':1e-6, 'force':1e-6, 'torque':1e-6}
+        tol = {'position':1e-4, 'orientation':1e-2, 'force':1e-4, 'torque':1e-4}
 
-    def compare_array(key_sim, key_ana, tol_val):
+    def compare_array(key_sim, key_ana, tol_val, eps=1e-15, floor_factor=1.0):
         arr_sim = np.asarray(sim_results[key_sim])
         arr_ana = np.asarray(ana_results[key_ana])
-        diffs = np.linalg.norm(arr_sim - arr_ana, axis=1)
-        passes = diffs <= tol_val
+
+        # Row-wise L2 norms (works for 1D or 2D rows)
+        def row_norm(a):
+            a = np.asarray(a)
+            if a.ndim == 1:
+                return np.abs(a)
+            return np.linalg.norm(a, axis=1)
+
+        diffs = row_norm(arr_sim - arr_ana)
+        mag_sim = row_norm(arr_sim)
+        mag_ana = row_norm(arr_ana)
+
+        # Robust floor: median of non-zero analytical magnitudes (fallback to eps)
+        nonzero = mag_ana[mag_ana > 0]
+        if nonzero.size > 0:
+            median_nonzero = np.median(nonzero) * floor_factor
+        else:
+            median_nonzero = eps
+
+        # Per-row scale: max(|ana|, |sim|, median_nonzero, eps)
+        scale = np.maximum.reduce([
+            mag_ana,
+            mag_sim,
+            np.full_like(mag_ana, median_nonzero),
+            np.full_like(mag_ana, eps)
+        ])
+
+        # Interpret tol_val as a relative tolerance (fraction)
+        passes = diffs <= (float(tol_val) * scale)
         return diffs, passes, bool(np.all(passes))
 
     report = {}

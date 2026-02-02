@@ -145,6 +145,10 @@ import csv
 file = open(outputFile, mode='w', newline='', encoding='utf-8')
 file.write('# ')
 writer = csv.writer(file, delimiter=' ')
+# Header is: # x1 y1 z1 x2 y2 z2 qx1 qy1 qz1 qw1 qx2 qy2 qz2 qw2 
+# 			 v1x v1y v1z v2x v2y v2z w1x w1y w1z w2x w2y w2z 
+# 			 f1x f1y f1z f2x f2y f2z t1x t1y t1z t2x t2y t2z
+# or in vector notation: pos1 pos2 vel1 vel2 q1 q2 omega1 omega2 F1 F2 T1 T2
 writer.writerow(plot.data.keys())
 writer.writerows(zip(*plot.data.values()))
 file.close()

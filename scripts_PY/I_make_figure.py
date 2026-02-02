@@ -224,7 +224,7 @@ def sci_str_latex(val, sig=3, thresh=1e-14):
 
 def write_latex_table(metrics, test_id, software_label, output_dir):
     """Write error metrics to LaTeX table."""
-    filename = output_dir / f'errors_test_{test_id:02d}_{software_label}.txt'
+    filename = output_dir / f'errors_{software_label}_test_{test_id:02d}.txt'
     
     # Mapping of quantity names to LaTeX vector notation
     quantity_latex = {
@@ -275,7 +275,7 @@ def write_latex_table(metrics, test_id, software_label, output_dir):
     print(f"✓ LaTeX table written to {filename}")
 
 
-def plot_test_1_2(ana_data, dem_data_ds, test_id, output_dir):
+def plot_test_1_2(ana_data, dem_data_ds, test_id, output_dir, software_label):
     """Plot x force component vs time for Tests 1 and 2."""
     fig, ax = plt.subplots(figsize=(3.2, 2.4))
     
@@ -316,14 +316,14 @@ def plot_test_1_2(ana_data, dem_data_ds, test_id, output_dir):
     ax.spines['right'].set_visible(True)
     
     plt.tight_layout()
-    plt.savefig(output_dir / f'figure_test_{test_id:02d}.pdf', dpi=300, bbox_inches='tight')
-    plt.savefig(output_dir / f'figure_test_{test_id:02d}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(output_dir / f'figure_{software_label}_test_{test_id:02d}.pdf', dpi=300, bbox_inches='tight')
+    plt.savefig(output_dir / f'figure_{software_label}_test_{test_id:02d}.png', dpi=300, bbox_inches='tight')
     plt.close()
     
     print(f"✓ Figure saved for Test {test_id}")
 
 
-def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir):
+def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir, software_label):
     """Plot 3D trajectory of force components."""
     import matplotlib.ticker as ticker
     
@@ -426,8 +426,8 @@ def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir):
     ax.zaxis.pane.fill = False
     
     plt.tight_layout()
-    plt.savefig(output_dir / f'figure_test_{test_id:02d}.pdf', dpi=300, bbox_inches='tight')
-    plt.savefig(output_dir / f'figure_test_{test_id:02d}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(output_dir / f'figure_{software_label}_test_{test_id:02d}.pdf', dpi=300, bbox_inches='tight')
+    plt.savefig(output_dir / f'figure_{software_label}_test_{test_id:02d}.png', dpi=300, bbox_inches='tight')
     plt.close()
     
     print(f"✓ Figure saved for Test {test_id}")
@@ -483,13 +483,13 @@ def main():
     # Create figure based on test ID
     print("\nGenerating high-quality figure...")
     if test_id in [1, 2]:
-        plot_test_1_2(ana_data, dem_data_ds, test_id, output_dir)
+        plot_test_1_2(ana_data, dem_data_ds, test_id, output_dir, software_label)
     elif test_id == 3:
-        plot_test_3d(ana_data, dem_data_ds, test_id, 'y', 'z', output_dir)
+        plot_test_3d(ana_data, dem_data_ds, test_id, 'y', 'z', output_dir, software_label)
     elif test_id == 4:
-        plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'y', output_dir)
+        plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'y', output_dir, software_label)
     elif test_id == 5:
-        plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'z', output_dir)
+        plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'z', output_dir, software_label)
     else:
         print(f"WARNING: No figure specification for Test {test_id}")
     

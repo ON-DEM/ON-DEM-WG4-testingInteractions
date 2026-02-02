@@ -120,6 +120,7 @@ def my_analytical_motion(
     v_theta = np.zeros((N,3)); du_theta = np.zeros((N,3))
     v_r = np.zeros((N,3)); du_r = np.zeros((N,3))
     v_s = np.zeros((N,3)); du_s = np.zeros((N,3))
+    theta_vec_i = np.zeros((N,3)); theta_vec_j = np.zeros((N,3))
 
     # Precompute constants
     denom = w**2 + k**2
@@ -277,15 +278,28 @@ def my_analytical_motion(
                                * np.exp(k_s * t_prev)
                            ))
             du_s[idx] = du_s_mag * np.cross(nr_s, n_ij[idx])
+
+            # Compute analytical rotation increments from t_{i-1} to t_i
+            # For particle i: omega_i = omega_b + 0.5*omegar_t*n_ij + 0.5/R_i*omegar_r*nr_r + 0.5/R_i*omegar_s*nr_s
+            # Integrating gives: theta_vec_i = omega_b*dt + 0.5*du_theta_mag*n_ij + 0.5/R_i*du_r_mag*nr_r + 0.5/R_i*du_s_mag*nr_s
+            theta_vec_i[idx] = (omega_b * dt 
+                                + 0.5 * du_theta_mag * n_ij[idx] 
+                                + 0.5/R_i * du_r_mag * nr_r 
+                                + 0.5/R_i * du_s_mag * nr_s)
+            # For particle j: omega_j = omega_b - 0.5*omegar_t*n_ij - 0.5/R_j*omegar_r*nr_r + 0.5/R_j*omegar_s*nr_s
+            theta_vec_j[idx] = (omega_b * dt 
+                                - 0.5 * du_theta_mag * n_ij[idx] 
+                                - 0.5/R_j * du_r_mag * nr_r 
+                                + 0.5/R_j * du_s_mag * nr_s)
     
     # Compute normal overlap (Eq. 12)
     l_mag = np.linalg.norm(l_ij, axis=1)
     u_n = (R_i + R_j - l_mag).reshape(-1,1) # Surface-to-surface across entire contact
     u_n = np.maximum(u_n, 0.0)
 
-    # Compute orientation
-    q_i =  my_integrate_rotation(init_q_i, omega_i, dt)
-    q_j =  my_integrate_rotation(init_q_j, omega_j, dt)
+    # Compute orientation using analytical rotation increments
+    q_i = my_integrate_rotation(init_q_i, theta_vec_i)
+    q_j = my_integrate_rotation(init_q_j, theta_vec_j)
 
     # Package results
     motions = {
@@ -301,39 +315,36 @@ def my_analytical_motion(
     }
     return motions
 
-def my_integrate_rotation(initial_quat, omega, dt):
+def my_integrate_rotation(initial_quat, theta_vecs):
     """
-    Integrate quaternion orientation over time given angular velocities (batch mode).
+    Integrate quaternion orientation over time given rotation vectors (batch mode).
     
     Parameters:
     - initial_quat: array-like, shape (4,)
         Initial orientation quaternion [x, y, z, w].
-    - omega: ndarray, shape (N, 3)
-        Time series of angular velocity vectors in rad/s for each timestep.
-    - dt: float
-        Timestep duration in seconds.
-    - nsteps: int, optional
-        Number of steps to simulate. If None, inferred from omega.shape[0].
+    - theta_vecs: ndarray, shape (N, 3)
+        Time series of rotation vectors (axis-angle representation) for each timestep.
+        theta_vecs[i] represents the rotation increment from time i-1 to time i.
+        theta_vecs[0] should be zero (initial orientation is given).
     
     Returns:
-    - quaternions: ndarray, shape (M, 4)
-        Quaternion orientations [x, y, z, w] at each time including initial; 
-        M = nsteps.
+    - quaternions: ndarray, shape (N, 4)
+        Quaternion orientations [x, y, z, w] at each time including initial.
     """
     # Ensure numpy arrays
-    omega = np.asarray(omega)
+    theta_vecs = np.asarray(theta_vecs)
     # Determine number of steps
-    nsteps = omega.shape[0]
+    nsteps = theta_vecs.shape[0]
 
     # Initialize orientation and storage
     orientation = Rotation.from_quat(initial_quat)
     quats = np.empty((nsteps, 4))
     quats[0] = orientation.as_quat()
     
-    # Loop over each timestep in batch
+    # Loop over each timestep
     for i in range(nsteps-1):
-        # Compute incremental rotation from angular velocity at step i
-        theta_vec = omega[i] * dt  # Rotation vector (axis * angle)
+        # Use the rotation vector for the next timestep (from t[i] to t[i+1])
+        theta_vec = theta_vecs[i + 1]
         delta_rot = Rotation.from_rotvec(theta_vec)
         # Update orientation by quaternion multiplication
         orientation = orientation * delta_rot

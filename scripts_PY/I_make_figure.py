@@ -266,8 +266,8 @@ def write_latex_table(metrics, test_id, software_label, output_dir):
         str_F = sci_str_latex(val_F, sig=3, thresh=1e-14)
         str_T = sci_str_latex(val_T, sig=3, thresh=1e-14)
         
-        f.write(f"Force inbalance & \\multicolumn{{2}}{{c}}{{{str_F}}} \\\\\n")
-        f.write(f"Torque inbalance & \\multicolumn{{2}}{{c}}{{{str_T}}} \\\\\n")
+        f.write(f"Force imbalance & \\multicolumn{{2}}{{c}}{{{str_F}}} \\\\\n")
+        f.write(f"Torque imbalance & \\multicolumn{{2}}{{c}}{{{str_T}}} \\\\\n")
         
         f.write("\\hline\n")
         f.write("\\end{tabular}\n")
@@ -275,7 +275,7 @@ def write_latex_table(metrics, test_id, software_label, output_dir):
     print(f"✓ LaTeX table written to {filename}")
 
 
-def plot_test_1_2(ana_data, dem_data_ds, test_id, output_dir, software_label):
+def plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label):
     """Plot x force component vs time for Tests 1 and 2."""
     fig, ax = plt.subplots(figsize=(3.2, 2.4))
     
@@ -483,13 +483,15 @@ def main():
     # Create figure based on test ID
     print("\nGenerating high-quality figure...")
     if test_id in [1, 2]:
-        plot_test_1_2(ana_data, dem_data_ds, test_id, output_dir, software_label)
+        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label)
     elif test_id == 3:
         plot_test_3d(ana_data, dem_data_ds, test_id, 'y', 'z', output_dir, software_label)
     elif test_id == 4:
         plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'y', output_dir, software_label)
     elif test_id == 5:
         plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'z', output_dir, software_label)
+    elif test_id in [6,7,8,9,10]:
+        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label)
     else:
         print(f"WARNING: No figure specification for Test {test_id}")
     

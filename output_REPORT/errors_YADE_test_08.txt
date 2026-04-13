@@ -1,14 +1,14 @@
-% Error metrics for Test 3 using YADE
+% Error metrics for Test 8 using YADE
 \begin{tabular}{lcc}
 \hline
 Quantity & MAPE$_i$ (\%) & MAPE$_j$ (\%) \\
 \hline
-Position $\vec{x}$ & $<1.0\times10^{-14}$ & $1.78\times10^{-4}$ \\
-Velocity $\vec{v}$ & $<1.0\times10^{-14}$ & $4.44\times10^{-5}$ \\
+Position $\vec{x}$ & $<1.0\times10^{-14}$ & $2.83\times10^{-6}$ \\
+Velocity $\vec{v}$ & $<1.0\times10^{-14}$ & $2.83\times10^{-1}$ \\
 Orientation $\vec{q}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
 Ang. velocity $\vec{\omega}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
-Force $\vec{F}$ & $5.33\times10^{-4}$ & $5.33\times10^{-4}$ \\
-Torque $\vec{T}$ & $5.36\times10^{-3}$ & $5.36\times10^{-3}$ \\
+Force $\vec{F}$ & $3.33\times10^{1}$ & $3.33\times10^{1}$ \\
+Torque $\vec{T}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
 \hline
 Force imbalance & \multicolumn{2}{c}{$<1.0\times10^{-14}$} \\
 Torque imbalance & \multicolumn{2}{c}{$<1.0\times10^{-14}$} \\

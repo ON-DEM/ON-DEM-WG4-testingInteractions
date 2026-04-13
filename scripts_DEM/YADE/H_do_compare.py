@@ -16,7 +16,7 @@ if len(sys.argv) < 2:
 
 testID = int(sys.argv[1])
 testname = f'test_{testID:02d}'
-#yadePath = 'yade'  # Adjust this path if YADE is located elsewhere
+#yadePath = 'YADE'  # Adjust this path if YADE is located elsewhere
 yadePath = '../../../../LS-DEM-dev/install-dev/bin/yade-2026-01-26.git-4c8f5a2'
 
 # Construct file paths

@@ -24,7 +24,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Configuration — edit these lists to add/remove tests or DEM softwares
 # ---------------------------------------------------------------------------
-ALL_TESTS = list(range(1, 11))        # tests 1-10 are currently implemented
+ALL_TESTS = list(range(1, 21))        # tests 1-20 are currently implemented
 ALL_SOFTWARES = ['YADE']              # add other DEM codes here as they are integrated
 
 # Path layout (all relative to this script, which lives at the project root)
@@ -59,10 +59,13 @@ def main():
                         help='Test IDs to run (default: all implemented tests)')
     parser.add_argument('--softwares', nargs='+', default=ALL_SOFTWARES,
                         help='DEM software labels to use (default: YADE)')
+    parser.add_argument('--skipana',   action='store_true',
+                        help='Skip generating analytical reference data (Stage 1)')
     args = parser.parse_args()
 
     tests     = args.tests
     softwares = args.softwares
+    skip_ana  = args.skipana
 
     # Tracking: key = (stage, item) → bool
     results_F = {}  # test → bool
@@ -76,14 +79,19 @@ def main():
     print("STAGE 1 — Analytical reference data  (F_generate_analytical.py)")
     print("="*70)
 
-    for test in tests:
-        label = f"F  test {test:02d}"
-        ok = run(
-            [sys.executable, F_SCRIPT, str(test)],
-            cwd=SCRIPTS_PY,
-            label=label,
-        )
-        results_F[test] = ok
+    if skip_ana:
+        print("\n  SKIPPING Stage 1 as requested (--skipana). Assuming data exists.")
+        for test in tests:
+            results_F[test] = True
+    else:
+        for test in tests:
+            label = f"F  test {test:02d}"
+            ok = run(
+                [sys.executable, F_SCRIPT, str(test)],
+                cwd=SCRIPTS_PY,
+                label=label,
+            )
+            results_F[test] = ok
 
     # -----------------------------------------------------------------------
     # Stage 2 — run DEM simulations and compare (H_do_compare.py)

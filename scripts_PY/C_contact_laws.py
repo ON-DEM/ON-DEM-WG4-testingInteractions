@@ -17,11 +17,21 @@ def Fn_spring_dashpot(contact_params, motions):
     v_ijn   = motions['v_ijn']              # (N,3)
     n_ij    = motions['n_ij']               # (N,3)
 
-    # Normal velocity magnitude
-    v_n = np.linalg.norm(v_ijn, axis=1)
+    # Check if there is contact at all.
+    active = (u_n > 0)
+
+    # Normal velocity magnitude (separation +, approach -), swapped so that approach is resistive (separation -, approach +).
+    v_n = - np.einsum('ij,ij->i', v_ijn, n_ij)
+
+    # Magnitude
+    Fn_mag = np.zeros_like(u_n)
+    Fn_mag[active] = k_n * u_n[active] + eta_n * v_n[active]
+    Fn_mag = np.maximum(Fn_mag, 0) # No adhesion in this model
+    # This clipping should be applied to the total force, not the viscous component only, 
+    # because the internal viscous forces can indeed be tensile, they just can transmit over a gap.
 
     # Apply contact model
-    Fn = - ( k_n * u_n[:, None] + eta_n * v_n[:, None] ) * n_ij
+    Fn = - Fn_mag[:, None] * n_ij
 
     return Fn
 

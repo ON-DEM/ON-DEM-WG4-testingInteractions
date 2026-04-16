@@ -74,10 +74,15 @@ T_j       = as_np('T_j')              # analytical torques if present (N,3)
 
 # --- Initialize simulation scene ---
 # Add a dummy material
-O.materials.append(FrictMat(young=kn, poisson=(ks/kn), frictionAngle=atan(mu)))
+O.materials.append(
+      MaxwellMat(young=kn, poisson=(ks/kn), 
+                frictionAngle=atan(mu), mur=mu, mut=mu,
+                ks=ks, kt=kt, kr=kr,
+                etan=etan, etas=etas, etar=etar, etat=etat)
+    )
 
-sphere1 = sphere(center=(x_i[0,0], x_i[0,1], x_i[0,2]), radius=R_i, fixed=True)
-sphere2 = sphere(center=(x_j[0,0], x_j[0,1], x_j[0,2]), radius=R_j, fixed=True)
+sphere1 = sphere(center=(x_i[0,0], x_i[0,1], x_i[0,2]), radius=R_i, fixed=False)
+sphere2 = sphere(center=(x_j[0,0], x_j[0,1], x_j[0,2]), radius=R_j, fixed=False)
 O.bodies.append([sphere1, sphere2])
 
 O.bodies[0].state.pos = (x_i[0,0], x_i[0,1], x_i[0,2])
@@ -191,12 +196,12 @@ O.engines = [
 	PyRunner(command='saveKinematics()',    initRun=True, iterPeriod=1),
 	PyRunner(command='imposeState()',       initRun=True, iterPeriod=1),
 	InteractionLoop(
-		[Ig2_Sphere_Sphere_ScGeom(avoidGranularRatcheting=True,exactRotations=True)],
-		[Ip2_FrictMat_FrictMat_FrictPhys(
+		[Ig2_Sphere_Sphere_ScGeom6D(avoidGranularRatcheting=True,updateRotations=False)], # updateRotations must be true if using bending.
+		[Ip2_MaxwellMat_MaxwellMat_MaxwellPhys(
 			kn=MatchMaker(algo='val', val=kn),
 			ks=MatchMaker(algo='val', val=ks)
 		)],
-		[Law2_ScGeom_FrictPhys_CundallStrack(sphericalBodies=True)]
+		[Law2_ScGeom_MaxwellPhys_general(useBending=False,limitViscousForce=True)]
 	),
 	PyRunner(command='saveForcesTorques()', initRun=True, iterPeriod=1),
 	NewtonIntegrator(gravity=(0, 0, 0), damping=0)

@@ -17,7 +17,8 @@ if len(sys.argv) < 2:
 testID = int(sys.argv[1])
 testname = f'test_{testID:02d}'
 #yadePath = 'YADE'  # Adjust this path if YADE is located elsewhere
-yadePath = '../../../../LS-DEM-dev/install-dev/bin/yade-2026-01-26.git-4c8f5a2'
+#yadePath = '../../../../LS-DEM-dev/install-dev/bin/yade-2026-01-26.git-4c8f5a2'
+yadePath = '../../../../LS-DEM-dev/install-dev/bin/yade-2026-04-16.git-28d91cd'
 
 # Construct file paths
 output_ana_file = f'../../output_ANA/theoretical_output_{testname}.json'

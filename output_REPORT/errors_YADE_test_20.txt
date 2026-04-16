@@ -1,0 +1,16 @@
+% Error metrics for Test 20 using YADE
+\begin{tabular}{lcc}
+\hline
+Quantity & MAPE$_i$ (\%) & MAPE$_j$ (\%) \\
+\hline
+Position $\vec{x}$ & $2.39\times10^{-2}$ & $2.17\times10^{-2}$ \\
+Velocity $\vec{v}$ & $1.31\times10^{4}$ & $1.31\times10^{4}$ \\
+Orientation $\vec{q}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
+Ang. velocity $\vec{\omega}$ & $3.70\times10^{-1}$ & $3.70\times10^{-1}$ \\
+Force $\vec{F}$ & $5.38\times10^{-4}$ & $5.38\times10^{-4}$ \\
+Torque $\vec{T}$ & $5.76\times10^{-3}$ & $5.76\times10^{-3}$ \\
+\hline
+Force imbalance & \multicolumn{2}{c}{$<1.0\times10^{-14}$} \\
+Torque imbalance & \multicolumn{2}{c}{$<1.0\times10^{-14}$} \\
+\hline
+\end{tabular}

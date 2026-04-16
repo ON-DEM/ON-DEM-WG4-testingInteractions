@@ -116,7 +116,6 @@ def my_analytical_motion(
     n_ij = np.zeros((N,3)); v_ijn = np.zeros((N,3)); a_ijn = np.zeros((N,3))
     l_ij = np.zeros((N,3))
     u_n = np.zeros((N,1))
-    v_theta = np.zeros((N,3)); 
     v_theta = np.zeros((N,3)); du_theta = np.zeros((N,3))
     v_r = np.zeros((N,3)); du_r = np.zeros((N,3))
     v_s = np.zeros((N,3)); du_s = np.zeros((N,3))
@@ -168,7 +167,7 @@ def my_analytical_motion(
                    + A * ti
                    - (B / denom) 
                    * (
-                       ( k * np.sin(w * ti + phi) + w * np.cos(w * ti + phi) ) 
+                       ( k * np.sin(w * ti + phi) - w * np.cos(w * ti + phi) ) 
                        * np.exp(k * ti)
                        - ( k * np.sin(phi) - w * np.cos(phi) )
                    )
@@ -236,9 +235,9 @@ def my_analytical_motion(
                 du_theta_mag = (A_t * dt
                                - (B_t / denom_t) 
                                * (
-                                   ( k_t * np.sin(w_t * ti + phi_t) + w_t * np.cos(w_t * ti + phi_t) ) 
+                                   ( k_t * np.sin(w_t * ti + phi_t) - w_t * np.cos(w_t * ti + phi_t) ) 
                                    * np.exp(k_t * ti)
-                                   - ( k_t * np.sin(w_t * t_prev + phi_t) + w_t * np.cos(w_t * t_prev + phi_t) )
+                                   - ( k_t * np.sin(w_t * t_prev + phi_t) - w_t * np.cos(w_t * t_prev + phi_t) )
                                    * np.exp(k_t * t_prev)
                                ))
             du_theta[idx] = du_theta_mag * n_ij[idx]
@@ -254,9 +253,9 @@ def my_analytical_motion(
                 du_r_mag = (A_r * dt
                            - (B_r / denom_r) 
                            * (
-                               ( k_r * np.sin(w_r * ti + phi_r) + w_r * np.cos(w_r * ti + phi_r) ) 
+                               ( k_r * np.sin(w_r * ti + phi_r) - w_r * np.cos(w_r * ti + phi_r) ) 
                                * np.exp(k_r * ti)
-                               - ( k_r * np.sin(w_r * t_prev + phi_r) + w_r * np.cos(w_r * t_prev + phi_r) )
+                               - ( k_r * np.sin(w_r * t_prev + phi_r) - w_r * np.cos(w_r * t_prev + phi_r) )
                                * np.exp(k_r * t_prev)
                            ))
             du_r[idx] = du_r_mag * np.cross(nr_r, n_ij[idx])
@@ -272,9 +271,9 @@ def my_analytical_motion(
                 du_s_mag = (A_s * dt
                            - (B_s / denom_s) 
                            * (
-                               ( k_s * np.sin(w_s * ti + phi_s) + w_s * np.cos(w_s * ti + phi_s) ) 
+                               ( k_s * np.sin(w_s * ti + phi_s) - w_s * np.cos(w_s * ti + phi_s) ) 
                                * np.exp(k_s * ti)
-                               - ( k_s * np.sin(w_s * t_prev + phi_s) + w_s * np.cos(w_s * t_prev + phi_s) )
+                               - ( k_s * np.sin(w_s * t_prev + phi_s) - w_s * np.cos(w_s * t_prev + phi_s) )
                                * np.exp(k_s * t_prev)
                            ))
             du_s[idx] = du_s_mag * np.cross(nr_s, n_ij[idx])

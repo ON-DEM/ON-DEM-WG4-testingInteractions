@@ -1,0 +1,16 @@
+% Error metrics for Test 13 using YADE
+\begin{tabular}{lcc}
+\hline
+Quantity & MAPE$_i$ (\%) & MAPE$_j$ (\%) \\
+\hline
+Position $\vec{x}$ & $1.73\times10^{-2}$ & $1.75\times10^{-2}$ \\
+Velocity $\vec{v}$ & $9.19\times10^{0}$ & $8.52\times10^{-1}$ \\
+Orientation $\vec{q}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
+Ang. velocity $\vec{\omega}$ & $1.04\times10^{0}$ & $1.04\times10^{0}$ \\
+Force $\vec{F}$ & $5.55\times10^{-2}$ & $5.55\times10^{-2}$ \\
+Torque $\vec{T}$ & $1.38\times10^{17}$ & $1.38\times10^{17}$ \\
+\hline
+Force imbalance & \multicolumn{2}{c}{$<1.0\times10^{-14}$} \\
+Torque imbalance & \multicolumn{2}{c}{$2.35\times10^{0}$} \\
+\hline
+\end{tabular}

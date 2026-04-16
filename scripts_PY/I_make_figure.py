@@ -490,7 +490,7 @@ def main():
         plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'y', output_dir, software_label)
     elif test_id == 5:
         plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'z', output_dir, software_label)
-    elif test_id in [6,7,8,9,10]:
+    elif test_id in [6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]:
         plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label)
     else:
         print(f"WARNING: No figure specification for Test {test_id}")

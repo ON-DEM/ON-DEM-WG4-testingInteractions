@@ -46,7 +46,7 @@ def Fs_spring_dashpot_Coulomb(contact_params, motions, Fn):
     """
     k_s     = contact_params['k_s']                         # (1)
     eta_s   = contact_params['eta_s']                       # (1)
-    mu      = contact_params['mu']                          # (1)
+    mu_s      = contact_params['mu_s']                          # (1)
     u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
     v_s     = np.array(motions['v_s'], dtype=float)         # (N,3)
     du_s    = np.array(motions['du_s'], dtype=float)        # (N,3) - over the last time step
@@ -92,8 +92,9 @@ def Fs_spring_dashpot_Coulomb(contact_params, motions, Fn):
             Fs_tmp -= k_s * du_s[i]
             # Apply Coulomb limit
             Fs_mag = np.linalg.norm(Fs_tmp)
-            if Fs_mag > mu * Fn_mag[i]:
-                Fs_tmp *= (mu * Fn_mag[i] / Fs_mag)
+            Fs_max = mu_s * Fn_mag[i]
+            if Fs_mag > Fs_max:
+                Fs_tmp *= (Fs_max / Fs_mag)
             
             # Save elastic component for next time step
             Fs_old = Fs_tmp.copy() # copy to avoid aliasing
@@ -102,8 +103,8 @@ def Fs_spring_dashpot_Coulomb(contact_params, motions, Fn):
             Fs_tmp -= eta_s * v_s[i]
             # Apply Coulomb limit, again (this is a modelling choice!)
             Fs_mag = np.linalg.norm(Fs_tmp)
-            if Fs_mag > mu * Fn_mag[i]:
-                Fs_tmp *= (mu * Fn_mag[i] / Fs_mag)
+            if Fs_mag > Fs_max:
+                Fs_tmp *= (Fs_max / Fs_mag)
 
             # Save total shear force
             Fs[i] = Fs_tmp.copy() # copy to avoid aliasing
@@ -119,7 +120,7 @@ def Fs_spring_dashpot_Coulomb_ext(contact_params, motions, Fn):
     """
     k_s     = contact_params['k_s']                         # (1)
     eta_s   = contact_params['eta_s']                       # (1)
-    mu      = contact_params['mu']                          # (1)
+    mu_s      = contact_params['mu_s']                          # (1)
     u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
     v_s     = np.array(motions['v_s'], dtype=float)         # (N,3)
     du_s    = np.array(motions['du_s'], dtype=float)        # (N,3) - over the last time step
@@ -165,9 +166,10 @@ def Fs_spring_dashpot_Coulomb_ext(contact_params, motions, Fn):
             Fs_tmp -= k_s * du_s[i]
             # Apply Coulomb limit
             Fs_mag = np.linalg.norm(Fs_tmp)
-            if Fs_mag > mu * Fn_mag[i]:
-                Fs_tmp *= (mu * Fn_mag[i] / Fs_mag)
-            
+            Fs_max = mu_s * Fn_mag[i]
+            if Fs_mag > Fs_max:
+                Fs_tmp *= (Fs_max / Fs_mag)
+
             # Save elastic component for next time step
             Fs_old = Fs_tmp.copy()
 
@@ -181,22 +183,28 @@ def Fs_spring_dashpot_Coulomb_ext(contact_params, motions, Fn):
     return Fs
 
 #
-#   ROLLING FORCE LAWS
+#   ROLLING TORQUE LAWS
 #
 
-def Fr_spring_dashpot_Coulomb(contact_params, motions, Fn):
+def Tr_spring_dashpot_Coulomb(contact_params, motions, Fn):
     """
     Linear spring-dashpot in parallel capped by Coulomb limit
-    Fr = - k_r * u_r - eta_r * v_r, with |Fr| <= mu*|Fn|
+    Tr = - k_r * u_r - eta_r * v_r, with |Tr| <= mu*Reff*|Fn|
     """
     k_r     = contact_params['k_r']                         # (1)
     eta_r   = contact_params['eta_r']                       # (1)
-    mu      = contact_params['mu']                          # (1)
+    mu_r    = contact_params['mu_r']                        # (1)
     u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
     v_r     = np.array(motions['v_r'], dtype=float)         # (N,3)
     du_r    = np.array(motions['du_r'], dtype=float)        # (N,3) - over the last time step
-    omega_b = np.asarray(motions['omega_b'], dtype=float)   # (N,3)
+    omega_f = np.asarray(motions['omega_f'], dtype=float)   # (N,3)
+    n_ij    = motions['n_ij']                               # (N,3)
     dt      = np.array(motions['dt'], dtype=float)          # (1)
+    R_i     = contact_params['R_i']
+    R_j     = contact_params['R_j']
+
+    # Effective radius needed to match dimensions on friction check
+    R_eff = 2.0*R_i*R_j/(R_i+R_j)
 
     # Test for contact
     mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
@@ -204,23 +212,26 @@ def Fr_spring_dashpot_Coulomb(contact_params, motions, Fn):
     # Normal force magnitudes
     Fn_mag = np.linalg.norm(Fn, axis=1)
 
+    # Roll arm
+    rollArm = R_eff * n_ij
+
     # Accumulate rolling force
     N, dim = du_r.shape
-    Fr = np.zeros((N,dim))
-    Fr[0] = 0
-    Fr_tmp = np.zeros(3)
-    Fr_old = np.zeros(3)
+    Tr = np.zeros((N,dim))
+    Tr[0] = 0
+    Tr_tmp = np.zeros(3)
+    Tr_old = np.zeros(3)
     for i in range(N):
         # Rolling force is lost if contact is lost
         if mask[i]:
-            Fr[i] = 0.0
-            Fr_old = np.zeros(3)
+            Tr[i] = 0.0
+            Tr_old = np.zeros(3)
         else:
             # Retrieve elastic component previous rolling force
-            Fr_tmp = Fr_old
+            Tr_tmp = Tr_old
 
             # Small-angle rotation update inside the loop
-            omega = omega_b[i]*dt[i]
+            omega = omega_f[i]*dt[i]
             theta = np.linalg.norm(omega)
             if theta > 1e-12:
                 axis = omega / theta
@@ -231,48 +242,54 @@ def Fr_spring_dashpot_Coulomb(contact_params, motions, Fn):
                     [-axis[1], axis[0], 0]
                 ])
                 R = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
-                Fr_tmp = R @ Fr_tmp
+                Tr_tmp = R @ Tr_tmp
 
             # Integrate increment
-            Fr_tmp -= k_r * du_r[i]
+            Tr_tmp -= np.cross(k_r * du_r[i], rollArm[i])
             # Apply Coulomb limit
-            Fr_mag = np.linalg.norm(Fr_tmp)
-            if Fr_mag > mu * Fn_mag[i]:
-                Fr_tmp *= (mu * Fn_mag[i] / Fr_mag)
-            
+            Tr_mag = np.linalg.norm(Tr_tmp)
+            Tr_max = mu_r * R_eff * Fn_mag[i]
+            if Tr_mag > Tr_max:
+                Tr_tmp *= (Tr_max / Tr_mag)
+
             # Save elastic component for next time step
-            Fr_old = Fr_tmp.copy() # copy to avoid aliasing
+            Tr_old = Tr_tmp.copy() # copy to avoid aliasing
 
             # Add viscous component
-            Fr_tmp -= eta_r * v_r[i]
+            Tr_tmp -= np.cross(eta_r * v_r[i], rollArm[i])
             # Apply Coulomb limit, again (this is a modelling choice!)
-            Fr_mag = np.linalg.norm(Fr_tmp)
-            if Fr_mag > mu * Fn_mag[i]:
-                Fr_tmp *= (mu * Fn_mag[i] / Fr_mag)
+            Tr_mag = np.linalg.norm(Tr_tmp)
+            if Tr_mag > Tr_max:
+                Tr_tmp *= (Tr_max / Tr_mag)
 
             # Save total rolling force
-            Fr[i] = Fr_tmp.copy() # copy to avoid aliasing
+            Tr[i] = Tr_tmp.copy() # copy to avoid aliasing
 
-    return Fr
+    return Tr
 
 
 #
-#   TWISTING FORCE LAWS
+#   TWISTING TORQUE LAWS
 #
 
 def Tt_spring_dashpot_Coulomb(contact_params, motions, Fn):
     """
     Linear spring-dashpot in parallel capped by Coulomb limit
-    Tt = - k_t * theta - eta_t * omega_t * dt, with |Tt| <= mu*|Fn|
+    Tt = - k_t * theta - eta_t * omega_t * dt, with |Tt| <= mu*R_eff*|Fn|
     """
     k_t     = contact_params['k_t']                         # (1)
     eta_t   = contact_params['eta_t']                       # (1)
-    mu      = contact_params['mu']                          # (1)
+    mu_t      = contact_params['mu_t']                          # (1)
     u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
     n_ij    = np.array(motions['n_ij'], dtype=float)        # (N,3)
-    v_theta = np.asarray(motions['v_theta'], dtype=float)   # (N,3)
-    du_theta = np.array(motions['du_theta'], dtype=float)   # (N,3) - over the last time step
+    omega_t = np.asarray(motions['omega_t'], dtype=float)   # (N,3)
+    dtheta_t = np.array(motions['dtheta_t'], dtype=float)   # (N,3) - over the last time step
     dt      = np.array(motions['dt'], dtype=float)          # (1)
+    R_i     = contact_params['R_i']
+    R_j     = contact_params['R_j']
+
+    # Effective radius needed to match dimensions on friction check
+    R_eff = 2.0*R_i*R_j/(R_i+R_j)
 
     # Test for contact
     mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
@@ -296,27 +313,96 @@ def Tt_spring_dashpot_Coulomb(contact_params, motions, Fn):
             Tt_tmp = Tt_old
             
             # Integrate increment
-            Tt_tmp -= k_t * du_theta[i]
+            Tt_tmp -= k_t * dtheta_t[i]
             
             # Apply Coulomb limit
             Tt_mag = np.linalg.norm(Tt_tmp)
-            if Tt_mag > mu * Fn_mag[i]:
-                Tt_tmp *= (mu * Fn_mag[i] / Tt_mag)
-            
+            Tt_max = mu_t * R_eff * Fn_mag[i]
+            if Tt_mag > Tt_max:
+                Tt_tmp *= (Tt_max / Tt_mag)
+
             # Save elastic component for next time step
             Tt_old = Tt_tmp.copy() # copy to avoid aliasing
 
             # Add viscous component
-            Tt_tmp -= eta_t * v_theta[i] * dt[i]
+            Tt_tmp -= eta_t * omega_t[i] * dt[i]
             # Apply Coulomb limit, again (this is a modelling choice!)
             Tt_mag = np.linalg.norm(Tt_tmp)
-            if Tt_mag > mu * Fn_mag[i]:
-                Tt_tmp *= (mu * Fn_mag[i] / Tt_mag)
+            if Tt_mag > Tt_max:
+                Tt_tmp *= (Tt_max / Tt_mag)
 
             # Save total twisting torque
             Tt[i] = Tt_tmp.copy() # copy to avoid aliasing
 
     return Tt
+
+#
+#   BENDING TORQUE LAWS
+#
+
+def Tb_spring_dashpot_Coulomb(contact_params, motions, Fn):
+    """
+    Linear spring-dashpot in parallel capped by Coulomb limit
+    Tb = - k_b * theta_b - eta_b * omega_b * dt, with |Tb| <= mu*R_eff*|Fn|
+    """
+    k_b     = contact_params['k_b']                         # (1)
+    eta_b   = contact_params['eta_b']                       # (1)
+    mu_b      = contact_params['mu_b']                        # (1)
+    u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
+    n_ij    = np.array(motions['n_ij'], dtype=float)        # (N,3)
+    omega_b = np.asarray(motions['omega_b'], dtype=float)   # (N,3)
+    dtheta_b = np.array(motions['dtheta_b'], dtype=float)   # (N,3) - over the last time step
+    dt      = np.array(motions['dt'], dtype=float)          # (1)
+    R_i     = contact_params['R_i']
+    R_j     = contact_params['R_j']
+
+    # Effective radius needed to match dimensions on friction check
+    R_eff = 2.0*R_i*R_j/(R_i+R_j)
+
+    # Test for contact
+    mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
+
+    # Normal force magnitudes
+    Fn_mag = np.linalg.norm(Fn, axis=1)
+
+    # Accumulate twisting torque
+    N = len(u_n)
+    Tb = np.zeros((N,3))
+    Tb[0] = 0
+    Tb_tmp = np.zeros(3)
+    Tb_old = np.zeros(3)
+    for i in range(N):
+        # Bending torque is lost if contact is lost
+        if mask[i]:
+            Tb[i] = 0.0
+            Tb_old = np.zeros(3)
+        else:
+            # Retrieve elastic component previous bending torque
+            Tb_tmp = Tb_old
+            
+            # Integrate increment
+            Tb_tmp -= k_b * dtheta_b[i]
+            
+            # Apply Coulomb limit
+            Tb_mag = np.linalg.norm(Tb_tmp)
+            Tb_max = mu_b * R_eff * Fn_mag[i]
+            if Tb_mag > Tb_max:
+                Tb_tmp *= (Tb_max / Tb_mag)
+
+            # Save elastic component for next time step
+            Tb_old = Tb_tmp.copy() # copy to avoid aliasing
+
+            # Add viscous component
+            Tb_tmp -= eta_b * omega_b[i] * dt[i]
+            # Apply Coulomb limit, again (this is a modelling choice!)
+            Tb_mag = np.linalg.norm(Tb_tmp)
+            if Tb_mag > Tb_max:
+                Tb_tmp *= (Tb_max / Tb_mag)
+
+            # Save total bending torque
+            Tb[i] = Tb_tmp.copy() # copy to avoid aliasing
+
+    return Tb
 
 #
 #   Mixing rules for mechanical contact properties
@@ -355,7 +441,7 @@ def my_compute_effective_params(contact_params):
     G_star = 1.0 / inv_G_star
 
     # Effective radius
-    R_star = (R_i * R_j) / (R_i + R_j)
+    R_star = 2.0 * (R_i * R_j) / (R_i + R_j)
 
     # Effective mass
     if (m_i is not None) and (m_j is not None):

@@ -22,8 +22,8 @@ imposePos = True  # Whether to impose positions and orientations, or only veloci
 imposed_data = json_to_dict(inputFile)
 
 # keys to exclude (do not import these)
-_exclude = {'omega_b', 'n_ij', 'v_ijn', 'a_ijn', 'l_ij',
-            'u_n', 'v_s', 'v_r', 'v_theta','du_s','du_r','du_theta'}
+_exclude = {'omega_f', 'n_ij', 'v_ijn', 'a_ijn', 'l_ij',
+            'u_n', 'v_s', 'v_r', 'omega_t','omega_b','du_s','du_r','dtheta_t','dtheta_b'}
 
 # build selected dict with everything except the excluded keys
 selected = {k: v for k, v in imposed_data.items() if k not in _exclude}
@@ -31,7 +31,7 @@ selected = {k: v for k, v in imposed_data.items() if k not in _exclude}
 # --- Read contact parameters from the JSON (written by F_generate_analytical.py) ---
 # Fall back to sensible defaults if an older JSON without contact_params is loaded.
 _cp_defaults = {'k_n': 1.0e7, 'k_s': 0.5e7, 'k_r': 0.0, 'k_t': 0.0,
-                'mu': 0.5,
+                'mu_s': 0.5, 'mu_r': 0.5, 'mu_t': 0.5, 'mu_b': 0.5,
                 'eta_n': 0.0, 'eta_s': 0.0, 'eta_r': 0.0, 'eta_t': 0.0,
                 'R_i': 1.0, 'R_j': 1.0}
 _cp = {**_cp_defaults, **(imposed_data.get('contact_params', {}))}
@@ -40,7 +40,10 @@ kn  = float(_cp['k_n'])   # normal stiffness [N/m]
 ks  = float(_cp['k_s'])   # shear stiffness [N/m]
 kr = float(_cp['k_r'])   # rolling stiffness [N m/rad]
 kt = float(_cp['k_t'])   # twisting stiffness [N m/rad]
-mu  = float(_cp['mu'])    # friction coefficient [-]
+mus = float(_cp['mu_s'])   # shear friction coefficient [-]
+mur = float(_cp['mu_r'])   # rolling friction coefficient [-]
+mut = float(_cp['mu_t'])   # twisting friction coefficient [-]
+mub = float(_cp['mu_b'])   # bulk friction coefficient [-]
 etan = float(_cp['eta_n']) # normal viscosity [kg/s]
 etas = float(_cp['eta_s']) # shear viscosity [kg/s]
 etar = float(_cp['eta_r']) # rolling viscosity [kg m^2/s]
@@ -76,7 +79,7 @@ T_j       = as_np('T_j')              # analytical torques if present (N,3)
 # Add a dummy material
 O.materials.append(
       MaxwellMat(young=kn, poisson=(ks/kn), 
-                frictionAngle=atan(mu), mur=mu, mut=mu,
+                frictionAngle=atan(mus), mur=mur, mut=mut, mub=mub,
                 ks=ks, kt=kt, kr=kr,
                 etan=etan, etas=etas, etar=etar, etat=etat)
     )

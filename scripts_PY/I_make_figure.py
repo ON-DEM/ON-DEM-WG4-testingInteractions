@@ -275,8 +275,25 @@ def write_latex_table(metrics, test_id, software_label, output_dir):
     print(f"✓ LaTeX table written to {filename}")
 
 
-def plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label):
-    """Plot x force component vs time for Tests 1 and 2."""
+def plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quantity='F'):
+    """Plot the x component of force (quantity='F') or torque (quantity='T') vs time.
+
+    Parameters
+    ----------
+    quantity : 'F' for force (default), 'T' for torque.
+        Tests 12, 13, 14 pass 'T' because the physically meaningful signal is
+        the x-torque; the force signal for those tests is either zero or trivial.
+    """
+    # Select the right data arrays and axis label
+    if quantity == 'T':
+        key_ana = 'T_i'
+        key_dem = 'T_i'
+        ylabel = r'$T_{i,x}$ (N$\cdot$m)'
+    else:
+        key_ana = 'F_i'
+        key_dem = 'F_i'
+        ylabel = r'$F_{i,x}$ (N)'
+
     fig, ax = plt.subplots(figsize=(3.2, 2.4))
     
     # Handle both 1D and 2D time arrays
@@ -288,12 +305,12 @@ def plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label):
         t_dem = t_dem.flatten()
     
     # Plot analytical data
-    ax.plot(t_ana, ana_data['F_i'][:, 0], 
+    ax.plot(t_ana, ana_data[key_ana][:, 0],
            color=COLOR_ANA, linewidth=1.5, zorder=1)
     
     # Plot DEM data (downsampled)
-    ax.plot(t_dem, dem_data_ds['F_i'][:, 0], 
-           'o', color=COLOR_DEM, markersize=3, markerfacecolor=COLOR_DEM, 
+    ax.plot(t_dem, dem_data_ds[key_dem][:, 0],
+           'o', color=COLOR_DEM, markersize=3, markerfacecolor=COLOR_DEM,
            markeredgewidth=0.3, markeredgecolor='black', zorder=2)
     
     # Zero line
@@ -304,11 +321,11 @@ def plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label):
     
     # Formatting
     ax.set_xlabel('Time (s)')
-    ax.set_ylabel('$F_{i,x}$ (N)')
+    ax.set_ylabel(ylabel)
     ax.set_xlim(0, t_ana[-1])
     
     # Use scientific notation if values exceed 1000
-    max_val = max(abs(ana_data['F_i'][:, 0].max()), abs(ana_data['F_i'][:, 0].min()))
+    max_val = max(abs(ana_data[key_ana][:, 0].max()), abs(ana_data[key_ana][:, 0].min()))
     if max_val > 1000:
         ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
     
@@ -433,6 +450,89 @@ def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir, softw
     print(f"✓ Figure saved for Test {test_id}")
 
 
+def plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label):
+    """Plot 3D trajectory in force space (F_x, F_y, F_z) without a time axis.
+
+    Used for complex motion tests (15, 18, 20) where the signal of interest is
+    the path traced by the force vector through 3D space rather than its
+    time-evolution along a single component.  Axis labels are therefore the
+    three force components, not 'Time (s)'.
+    """
+    import matplotlib.ticker as ticker
+
+    fig = plt.figure(figsize=(3.5, 3.0))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Plot analytical data
+    ax.plot(ana_data['F_i'][:, 0], ana_data['F_i'][:, 1], ana_data['F_i'][:, 2],
+            color=COLOR_ANA, linewidth=1.5, zorder=1)
+
+    # Plot DEM data (downsampled)
+    ax.scatter(dem_data_ds['F_i'][:, 0], dem_data_ds['F_i'][:, 1], dem_data_ds['F_i'][:, 2],
+               c=[COLOR_DEM], s=20, edgecolors='black', linewidths=0.3, zorder=2)
+
+    # Grid
+    ax.grid(True, alpha=0.15, linewidth=0.3)
+
+    # Axis labels
+    ax.set_xlabel(r'$F_{i,x}$ (N)')
+    ax.set_ylabel(r'$F_{i,y}$ (N)')
+    ax.set_zlabel(r'$F_{i,z}$ (N)')
+
+    def get_nice_limits(data):
+        """Get nice round axis limits with a 10% margin."""
+        import math
+        data_min = data.min()
+        data_max = data.max()
+        abs_max = max(abs(data_min), abs(data_max))
+        if abs_max == 0:
+            magnitude = 1
+        else:
+            magnitude = 10 ** math.floor(math.log10(abs_max))
+        nice_numbers = [1, 2, 5, 10]
+        extended_range = data_max - data_min
+        step = magnitude
+        for nice in nice_numbers:
+            test_step = nice * magnitude
+            if extended_range / test_step < 10:
+                step = test_step
+                break
+        limit_min = math.floor(data_min / step) * step
+        limit_max = math.ceil(data_max / step) * step
+        return limit_min, limit_max
+
+    for idx, (setter, label_setter, formatter_axis) in enumerate([
+        (ax.set_xlim, ax.set_xlabel, 'x'),
+        (ax.set_ylim, ax.set_ylabel, 'y'),
+        (ax.set_zlim, ax.set_zlabel, 'z'),
+    ]):
+        data_all = np.concatenate([ana_data['F_i'][:, idx], dem_data_ds['F_i'][:, idx]])
+        lim_min, lim_max = get_nice_limits(data_all)
+        setter(lim_min, lim_max)
+        if max(abs(lim_min), abs(lim_max)) > 1000:
+            if formatter_axis == 'x':
+                ax.xaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+                ax.ticklabel_format(axis='x', style='sci', scilimits=(0, 0))
+            elif formatter_axis == 'y':
+                ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+                ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+            else:
+                ax.zaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+                ax.ticklabel_format(axis='z', style='sci', scilimits=(0, 0))
+
+    # Set box appearance
+    ax.xaxis.pane.fill = False
+    ax.yaxis.pane.fill = False
+    ax.zaxis.pane.fill = False
+
+    plt.tight_layout()
+    plt.savefig(output_dir / f'figure_{software_label}_test_{test_id:02d}.pdf', dpi=300, bbox_inches='tight')
+    plt.savefig(output_dir / f'figure_{software_label}_test_{test_id:02d}.png', dpi=300, bbox_inches='tight')
+    plt.close()
+
+    print(f"✓ Figure saved for Test {test_id}")
+
+
 def main():
     """Main function."""
     if len(sys.argv) < 3:
@@ -490,7 +590,20 @@ def main():
         plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'y', output_dir, software_label)
     elif test_id == 5:
         plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'z', output_dir, software_label)
-    elif test_id in [6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]:
+    elif test_id in [6, 7, 8, 9, 10, 11]:
+        # Force x vs time
+        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label)
+    elif test_id in [12, 13, 14]:
+        # Torque x vs time: the physically meaningful signal for these tests
+        # (size-dependent stiffness, large-ratio shear rotation, rolling/bending
+        # distinction) is best observed in the torque rather than the force.
+        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quantity='T')
+    elif test_id in [15, 18, 20]:
+        # 3D force-space trajectory: axes are F_x, F_y, F_z (no time axis).
+        # Used for complex motion tests where the force vector traces a 3D path.
+        plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label)
+    elif test_id in [16, 17, 19]:
+        # Force x vs time for remaining tests
         plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label)
     else:
         print(f"WARNING: No figure specification for Test {test_id}")

@@ -8,7 +8,7 @@ from scipy.spatial.transform import Rotation
 #
 
 def my_analytical_motion(
-    x_b, v_b, omega_b,
+    x_f, v_f, omega_f,
     init_q_i, init_q_j,
     A, B, w, phi, k, l0,
     A_t, B_t, w_t, phi_t, k_t,
@@ -23,8 +23,8 @@ def my_analytical_motion(
 
     Inputs
     ------
-    x_b, v_b, omega_b : (3,) vectors
-        Base position, velocity, and angular velocity.
+    x_f, v_f, omega_f : (3,) vectors
+        Frame position, velocity, and angular velocity.
     init_q_i, init_q_j : (4,) vectors
         Initial orientations of particles i and j given by quaternion
         with format [x, y, z, w]
@@ -52,18 +52,15 @@ def my_analytical_motion(
       q_i,q_j: (N,4)
       omega_i,omega_j: (N,3)
       n_ij,v_ijn,a_ijn,l_ij: (N,3)
-      omega_b: (3,)
-      v_s,v_r,v_theta: (N,3)
-      du_s,du_r,du_theta: (N,3)
+      omega_f: (3,)
+      v_s,v_r,omega_t,omega_b: (N,3)
+      du_s,du_r,dtheta_t,dtheta_b: (N,3)
     """
 
-    # UPDATE: Add analytical computation of du_s du_r and d_theta.
-    # UPDATE: Add analytical accelerations.
-
     # Convert inputs to arrays
-    x_b = np.asarray(x_b, float)
-    v_b = np.asarray(v_b, float)
-    omega_b = np.asarray(omega_b, float)
+    x_f = np.asarray(x_f, float)
+    v_f = np.asarray(v_f, float)
+    omega_f = np.asarray(omega_f, float)
     l0 = np.asarray(l0, float)
     n_r = np.asarray(n_r, float)
     n_s = np.asarray(n_s, float)
@@ -82,8 +79,8 @@ def my_analytical_motion(
     if not np.isscalar(A_s) or not np.isscalar(B_s) or not np.isscalar(w_s) or not np.isscalar(phi_s) or not np.isscalar(k_s):
         raise ValueError("Parameters A, B, w, phi, and k must be scalars.")
     # Vector validations
-    if x_b.shape != (3,) or v_b.shape != (3,) or omega_b.shape != (3,):
-        raise ValueError("Inputs x_b, v_b, omega_b must be 3-vectors.")
+    if x_f.shape != (3,) or v_f.shape != (3,) or omega_f.shape != (3,):
+        raise ValueError("Inputs x_f, v_f, omega_f must be 3-vectors.")
     if len(init_q_i) != 4 or len(init_q_j) != 4:
         raise ValueError("Inputs init_q_i and init_q_j must be 4-vectors.")
     if l0.shape != (3,):
@@ -116,10 +113,11 @@ def my_analytical_motion(
     n_ij = np.zeros((N,3)); v_ijn = np.zeros((N,3)); a_ijn = np.zeros((N,3))
     l_ij = np.zeros((N,3))
     u_n = np.zeros((N,1))
-    v_theta = np.zeros((N,3)); du_theta = np.zeros((N,3))
     v_r = np.zeros((N,3)); du_r = np.zeros((N,3))
     v_s = np.zeros((N,3)); du_s = np.zeros((N,3))
-    theta_vec_i = np.zeros((N,3)); theta_vec_j = np.zeros((N,3))
+    omega_t = np.zeros((N,3)); dtheta_t = np.zeros((N,3))
+    omega_b = np.zeros((N,3)); dtheta_b = np.zeros((N,3))
+    dtheta_vec_i = np.zeros((N,3)); dtheta_vec_j = np.zeros((N,3))
 
     # Precompute constants
     denom = w**2 + k**2
@@ -142,8 +140,8 @@ def my_analytical_motion(
     zero_w_s = np.isclose(w_s, 0)
 
     for idx, ti in enumerate(t):
-        # Body rotation, this works because omega_b is constant.
-        Rb = Rotation.from_rotvec(omega_b * ti)
+        # Body rotation, this works because omega_f is constant.
+        Rb = Rotation.from_rotvec(omega_f * ti)
 
         # Contact normal (Eq. 5)
         n_ij[idx] = Rb.apply(n0)
@@ -153,7 +151,6 @@ def my_analytical_motion(
 
         # Compute relative normal acceleration (Eq. 26)
         a_ijn[idx] = -B * np.exp(k * ti) * (w * np.cos(w * ti + phi) + k * np.sin(w * ti + phi)) * n_ij[idx]
-
 
         # Compute branch magnitude (Eq. 24)
         if zero_k and zero_w:
@@ -176,22 +173,22 @@ def my_analytical_motion(
         l_ij[idx] = mag * n_ij[idx]
         
         # Positions (Eq. 1 and 2)
-        x_i[idx] = Rb.apply(x_b) + v_b * ti
+        x_i[idx] = Rb.apply(x_f) + v_f * ti
         x_j[idx] = x_i[idx] + l_ij[idx]
 
         # Velocities (Eq. 3 and 4)
-        v_i[idx] = v_b + np.cross(omega_b, x_i[idx])
-        v_j[idx] = v_i[idx] + np.cross(omega_b, l_ij[idx]) + v_ijn[idx]
-        # Equivalently: v_j[idx] = v_b + np.cross(omega_b, x_j[idx]) + v_ijn[idx]
+        v_i[idx] = v_f + np.cross(omega_f, x_i[idx])
+        v_j[idx] = v_i[idx] + np.cross(omega_f, l_ij[idx]) + v_ijn[idx]
+        # Equivalently: v_j[idx] = v_f + np.cross(omega_f, x_j[idx]) + v_ijn[idx]
 
         # Accelerations
-        # a_i = omega_b × (omega_b × x_i)
-        a_i[idx] = np.cross(omega_b, np.cross(omega_b, x_i[idx]))
-        # a_j = a_i + a_ijn + 2*v_ijn*(omega_b × n_ij) + |l_ij|*omega_b × (omega_b × n_ij)
+        # a_i = omega_f × (omega_f × x_i)
+        a_i[idx] = np.cross(omega_f, np.cross(omega_f, x_i[idx]))
+        # a_j = a_i + a_ijn + 2*v_ijn*(omega_f × n_ij) + |l_ij|*omega_f × (omega_f × n_ij)
         a_j[idx] = (a_i[idx] 
                     + a_ijn[idx] 
-                    + 2 * np.linalg.norm(v_ijn[idx]) * np.cross(omega_b, n_ij[idx])
-                    + mag * np.cross(omega_b, np.cross(omega_b, n_ij[idx])))
+                    + 2 * np.linalg.norm(v_ijn[idx]) * np.cross(omega_f, n_ij[idx])
+                    + mag * np.cross(omega_f, np.cross(omega_f, n_ij[idx])))
 
         # Angular velocities (Eq. 23)
         omegar_t = A_t - B_t * np.sin(w_t * ti + phi_t) * np.exp(k_t * ti)
@@ -200,26 +197,28 @@ def my_analytical_motion(
         # Rotated direction vectors (Eq. 9 and 10)
         nr_r = Rb.apply(n_r)
         nr_s = Rb.apply(n_s)
-        omega_i[idx] = (omega_b
+        omega_i[idx] = (omega_f
                         + 0.5 * omegar_t * n_ij[idx]
                         + 0.5/R_i * omegar_r * nr_r
                         + 0.5/R_i * omegar_s * nr_s)
-        omega_j[idx] = (omega_b
+        omega_j[idx] = (omega_f
                         - 0.5 * omegar_t * n_ij[idx]
                         - 0.5/R_j * omegar_r * nr_r
                         + 0.5/R_j * omegar_s * nr_s)
         
         # Twist, roll, and shear velocities (Eq. 18 and 20)
-        v_theta[idx] = omegar_t * n_ij[idx]
+        omega_t[idx] = omegar_t * n_ij[idx]
         v_r[idx] = omegar_r * np.cross(nr_r, n_ij[idx])
         v_s[idx] = omegar_s * np.cross(nr_s, n_ij[idx])
+        omega_b[idx] = omega_i[idx] - omega_j[idx] - omega_t[idx]
 
         # Compute analytical displacement increments over last timestep
         if idx == 0:
             # First timestep: no previous timestep exists, so increments are zero
-            du_theta[idx] = 0.0
+            dtheta_t[idx] = 0.0
             du_r[idx] = np.zeros(3)
             du_s[idx] = np.zeros(3)
+            dtheta_b[idx] = 0.0
         else:
             # Compute integral of angular velocities over [t_{i-1}, t_i]
             t_prev = t[idx-1]
@@ -240,7 +239,7 @@ def my_analytical_motion(
                                    - ( k_t * np.sin(w_t * t_prev + phi_t) - w_t * np.cos(w_t * t_prev + phi_t) )
                                    * np.exp(k_t * t_prev)
                                ))
-            du_theta[idx] = du_theta_mag * n_ij[idx]
+            dtheta_t[idx] = du_theta_mag * n_ij[idx]
 
             # Roll displacement increment (vector)
             if zero_k_r and zero_w_r:
@@ -279,17 +278,20 @@ def my_analytical_motion(
             du_s[idx] = du_s_mag * np.cross(nr_s, n_ij[idx])
 
             # Compute analytical rotation increments from t_{i-1} to t_i
-            # For particle i: omega_i = omega_b + 0.5*omegar_t*n_ij + 0.5/R_i*omegar_r*nr_r + 0.5/R_i*omegar_s*nr_s
-            # Integrating gives: theta_vec_i = omega_b*dt + 0.5*du_theta_mag*n_ij + 0.5/R_i*du_r_mag*nr_r + 0.5/R_i*du_s_mag*nr_s
-            theta_vec_i[idx] = (omega_b * dt 
+            # For particle i: omega_i = omega_f + 0.5*omegar_t*n_ij + 0.5/R_i*omegar_r*nr_r + 0.5/R_i*omegar_s*nr_s
+            # Integrating gives: dtheta_vec_i = omega_f*dt + 0.5*du_theta_mag*n_ij + 0.5/R_i*du_r_mag*nr_r + 0.5/R_i*du_s_mag*nr_s
+            dtheta_vec_i[idx] = (omega_f * dt 
                                 + 0.5 * du_theta_mag * n_ij[idx] 
                                 + 0.5/R_i * du_r_mag * nr_r 
                                 + 0.5/R_i * du_s_mag * nr_s)
-            # For particle j: omega_j = omega_b - 0.5*omegar_t*n_ij - 0.5/R_j*omegar_r*nr_r + 0.5/R_j*omegar_s*nr_s
-            theta_vec_j[idx] = (omega_b * dt 
+            # For particle j: omega_j = omega_f - 0.5*omegar_t*n_ij - 0.5/R_j*omegar_r*nr_r + 0.5/R_j*omegar_s*nr_s
+            dtheta_vec_j[idx] = (omega_f * dt 
                                 - 0.5 * du_theta_mag * n_ij[idx] 
                                 - 0.5/R_j * du_r_mag * nr_r 
                                 + 0.5/R_j * du_s_mag * nr_s)
+
+            # For bending
+            dtheta_b[idx] = dtheta_vec_i[idx] - dtheta_vec_j[idx] - dtheta_t[idx]
     
     # Compute normal overlap (Eq. 12)
     l_mag = np.linalg.norm(l_ij, axis=1)
@@ -297,8 +299,8 @@ def my_analytical_motion(
     u_n = np.maximum(u_n, 0.0)
 
     # Compute orientation using analytical rotation increments
-    q_i = my_integrate_rotation(init_q_i, theta_vec_i)
-    q_j = my_integrate_rotation(init_q_j, theta_vec_j)
+    q_i = my_integrate_rotation(init_q_i, dtheta_vec_i)
+    q_j = my_integrate_rotation(init_q_j, dtheta_vec_j)
 
     # Package results
     motions = {
@@ -307,10 +309,10 @@ def my_analytical_motion(
         'v_i': v_i, 'v_j': v_j,
         'a_i': a_i, 'a_j': a_j,
         'q_i': q_i, 'q_j': q_j,
-        'omega_i': omega_i, 'omega_j': omega_j, 'omega_b': [omega_b]*len(t),
+        'omega_i': omega_i, 'omega_j': omega_j, 'omega_f': [omega_f]*len(t),
         'n_ij': n_ij, 'v_ijn': v_ijn, 'a_ijn': a_ijn, 'l_ij': l_ij,
-        'u_n': u_n, 'v_s': v_s, 'v_r': v_r, 'v_theta': v_theta,
-        'du_s': du_s, 'du_r': du_r, 'du_theta': du_theta
+        'u_n': u_n, 'v_s': v_s, 'v_r': v_r, 'omega_t': omega_t, 'omega_b': omega_b,
+        'du_s': du_s, 'du_r': du_r, 'dtheta_t': dtheta_t, 'dtheta_b': dtheta_b
     }
     return motions
 

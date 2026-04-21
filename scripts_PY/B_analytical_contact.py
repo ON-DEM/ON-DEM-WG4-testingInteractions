@@ -6,7 +6,7 @@ import numpy as np
 #   GENERATE THE CONTACT INTERACTION
 #
 
-def my_analytical_contact(motions, contact_params, Fn_func, Fs_func=None, Fr_func=None, Tt_func=None):
+def my_analytical_contact(motions, contact_params, Fn_func, Fs_func=None, Tr_func=None, Tt_func=None, Tb_func=None):
     """
     Generalised contact force batch processor.
 
@@ -16,7 +16,11 @@ def my_analytical_contact(motions, contact_params, Fn_func, Fs_func=None, Fr_fun
         Dictionary of contact parameters. Expected keys:
             'kn' : float - normal stiffness
             'ks' : float - tangential stiffness
+            'kr' : float - rolling stiffness
+            'kt' : float - twisting stiffness
+            'kb' : float - bending stiffness
             'mu' : float - friction coefficient
+            etc ..
             'R_i','R_j'  : float - reference length to surface,
                 particle radii in the case of spheres.
     motions : dict of ndarrays
@@ -33,10 +37,10 @@ def my_analytical_contact(motions, contact_params, Fn_func, Fs_func=None, Fr_fun
             'l_ij'   : (N,3) center-center branch vector
             'v_s'    : (N,3) tangential component of rel vel
             'v_r'    : (N,3) rolling component of rel vel
-            'v_theta': (N,3) twist component of rel vel
+            'omega_t': (N,3) twist component of rel vel
             'du_s' : (N,3) shear displacement increment
             'du_r' : (N,3) roll displacement increment
-            'du_theta': (N,3) twist displacement increment
+            'dtheta_t': (N,3) twist displacement increment
     Fn_func : callable
         Function to compute normal force:
             Fn = Fn_func(contact_params, motions)
@@ -68,19 +72,24 @@ def my_analytical_contact(motions, contact_params, Fn_func, Fs_func=None, Fr_fun
     else:
         Fs = Fs_func(contact_params, motions, Fn)
     # Roll
-    if Fr_func == None:
-        Fr = np.zeros(Fn.shape)
+    if Tr_func == None:
+        Tr = np.zeros(Fn.shape)
     else:
-        Fr = Fr_func(contact_params, motions, Fn)
+        Tr = Tr_func(contact_params, motions, Fn)
     # Twist
     if Tt_func == None:
         Tt = np.zeros(Fn.shape)
     else:
         Tt = Tt_func(contact_params, motions, Fn)
+    # Bend
+    if Tb_func == None:
+        Tb = np.zeros(Fn.shape)
+    else:
+        Tb = Tb_func(contact_params, motions, Fn)
 
     # Total force
-    F_i = Fn + Fs + Fr
-    F_j = -F_i
+    F_i =  Fn + Fs
+    F_j = -Fn - Fs
 
     # Get normal penetration
     u_n = motions['u_n']
@@ -93,8 +102,8 @@ def my_analytical_contact(motions, contact_params, Fn_func, Fs_func=None, Fr_fun
     cross_nF_j = np.cross(-n_ij, F_j)
     # Sum torque induced by force with torque from
     # direct-torque contact models (such as with twist)
-    T_i = (r_i * cross_nF_i) + Tt
-    T_j = (r_j * cross_nF_j) - Tt
+    T_i = (r_i * cross_nF_i) + Tr + Tt + Tb
+    T_j = (r_j * cross_nF_j) - Tr - Tt - Tb
 
     # Package results
     result = motions.copy()

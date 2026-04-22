@@ -16,19 +16,17 @@ def my_analytical_contact(motions, contact_params, Fn_func, Fs_func=None, Tr_fun
         Dictionary of contact parameters. Expected keys:
             'kn' : float - normal stiffness
             'ks' : float - tangential stiffness
-            'kr' : float - rolling stiffness
-            'kt' : float - twisting stiffness
-            'kb' : float - bending stiffness
-            'mu' : float - friction coefficient
+            etc...
+            'mus' : float - tangential friction coefficient
             etc ..
             'R_i','R_j'  : float - reference length to surface,
                 particle radii in the case of spheres.
     motions : dict of ndarrays
         Input motion data with keys:
-            't'      : (N,1) time array
+            't'         : (N,1) time array
             'x_i','x_j' : (N,3) position arrays
             'v_i','v_j' : (N,3) velocity arrays
-            'a_i','a_j': (N,3) acceleration arrays
+            'a_i','a_j' : (N,3) acceleration arrays
             'q_i','q_j' : (N,4) orientation quaternions
             'omega_i','omega_j': (N,3) angular vel arrays
             'n_ij'   : (N,3) contact normals

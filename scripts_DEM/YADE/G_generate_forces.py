@@ -30,24 +30,26 @@ selected = {k: v for k, v in imposed_data.items() if k not in _exclude}
 
 # --- Read contact parameters from the JSON (written by F_generate_analytical.py) ---
 # Fall back to sensible defaults if an older JSON without contact_params is loaded.
-_cp_defaults = {'k_n': 1.0e7, 'k_s': 0.5e7, 'k_r': 0.0, 'k_t': 0.0,
-                'mu_s': 0.5, 'mu_r': 0.5, 'mu_t': 0.5, 'mu_b': 0.5,
-                'eta_n': 0.0, 'eta_s': 0.0, 'eta_r': 0.0, 'eta_t': 0.0,
+_cp_defaults = {'k_n': 1.0e7, 'k_s': 0.5e7, 'k_r': 0.0, 'k_t': 0.0, 'k_b': 0.0,
+                			  'mu_s': 0.5, 'mu_r': 0.5, 'mu_t': 0.5, 'mu_b': 0.5,
+                'eta_n': 0.0, 'eta_s': 0.0, 'eta_r': 0.0, 'eta_t': 0.0, 'eta_b': 0.0,
                 'R_i': 1.0, 'R_j': 1.0}
 _cp = {**_cp_defaults, **(imposed_data.get('contact_params', {}))}
  
 kn  = float(_cp['k_n'])   # normal stiffness [N/m]
 ks  = float(_cp['k_s'])   # shear stiffness [N/m]
-kr = float(_cp['k_r'])   # rolling stiffness [N m/rad]
+kr = float(_cp['k_r'])   # rolling stiffness [N/m]
 kt = float(_cp['k_t'])   # twisting stiffness [N m/rad]
+kb = float(_cp['k_b'])   # bending stiffness [N m/rad]
 mus = float(_cp['mu_s'])   # shear friction coefficient [-]
 mur = float(_cp['mu_r'])   # rolling friction coefficient [-]
 mut = float(_cp['mu_t'])   # twisting friction coefficient [-]
-mub = float(_cp['mu_b'])   # bulk friction coefficient [-]
+mub = float(_cp['mu_b'])   # bending friction coefficient [-]
 etan = float(_cp['eta_n']) # normal viscosity [kg/s]
 etas = float(_cp['eta_s']) # shear viscosity [kg/s]
-etar = float(_cp['eta_r']) # rolling viscosity [kg m^2/s]
+etar = float(_cp['eta_r']) # rolling viscosity [kg/s]
 etat = float(_cp['eta_t']) # twisting viscosity [kg m^2/s]
+etab = float(_cp['eta_b']) # bending viscosity [kg m^2/s]
 R_i = float(_cp['R_i'])   # radius of particle i [m]
 R_j = float(_cp['R_j'])   # radius of particle j [m]
 
@@ -78,10 +80,10 @@ T_j       = as_np('T_j')              # analytical torques if present (N,3)
 # --- Initialize simulation scene ---
 # Add a dummy material
 O.materials.append(
-      MaxwellMat(young=kn, poisson=(ks/kn), 
+      MaxwellMat(young=kn, poisson=(ks/kn), etan=etan, 
                 frictionAngle=atan(mus), mur=mur, mut=mut, mub=mub,
-                ks=ks, kt=kt, kr=kr,
-                etan=etan, etas=etas, etar=etar, etat=etat)
+                ks=ks, kr=kr, kt=kt, kb=kb,
+                etas=etas, etar=etar, etat=etat, etab=etab)
     )
 
 sphere1 = sphere(center=(x_i[0,0], x_i[0,1], x_i[0,2]), radius=R_i, fixed=False)
@@ -199,12 +201,12 @@ O.engines = [
 	PyRunner(command='saveKinematics()',    initRun=True, iterPeriod=1),
 	PyRunner(command='imposeState()',       initRun=True, iterPeriod=1),
 	InteractionLoop(
-		[Ig2_Sphere_Sphere_ScGeom6D(avoidGranularRatcheting=True,updateRotations=False)], # updateRotations must be true if using bending.
+		[Ig2_Sphere_Sphere_ScGeom6D(avoidGranularRatcheting=True,exactRotations=True,updateRotations=True)], # updateRotations must be true if using bending.
 		[Ip2_MaxwellMat_MaxwellMat_MaxwellPhys(
 			kn=MatchMaker(algo='val', val=kn),
 			ks=MatchMaker(algo='val', val=ks)
 		)],
-		[Law2_ScGeom_MaxwellPhys_general(useBending=False,limitViscousForce=True)]
+		[Law2_ScGeom_MaxwellPhys_general(limitViscousPart=True,hasBending=False)]
 	),
 	PyRunner(command='saveForcesTorques()', initRun=True, iterPeriod=1),
 	NewtonIntegrator(gravity=(0, 0, 0), damping=0)

@@ -50,7 +50,7 @@ def Fs_spring_dashpot_Coulomb(contact_params, motions, Fn):
     u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
     v_s     = np.array(motions['v_s'], dtype=float)         # (N,3)
     du_s    = np.array(motions['du_s'], dtype=float)        # (N,3) - over the last time step
-    omega_b = np.asarray(motions['omega_b'], dtype=float)   # (N,3)
+    omega_f = np.asarray(motions['omega_f'], dtype=float)   # (N,3)
     dt      = np.array(motions['dt'], dtype=float)          # (1)
 
     # Test for contact
@@ -75,7 +75,7 @@ def Fs_spring_dashpot_Coulomb(contact_params, motions, Fn):
             Fs_tmp = Fs_old
 
             # Small-angle rotation update inside the loop
-            omega = omega_b[i]*dt[i]
+            omega = omega_f[i]*dt[i]
             theta = np.linalg.norm(omega)
             if theta > 1e-12: # Bad magic number
                 axis = omega / theta
@@ -124,7 +124,7 @@ def Fs_spring_dashpot_Coulomb_ext(contact_params, motions, Fn):
     u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
     v_s     = np.array(motions['v_s'], dtype=float)         # (N,3)
     du_s    = np.array(motions['du_s'], dtype=float)        # (N,3) - over the last time step
-    omega_b = np.asarray(motions['omega_b'], dtype=float)   # (N,3)
+    omega_f = np.asarray(motions['omega_f'], dtype=float)   # (N,3)
     dt      = np.array(motions['dt'], dtype=float)          # (1)
 
     # Test for contact
@@ -149,7 +149,7 @@ def Fs_spring_dashpot_Coulomb_ext(contact_params, motions, Fn):
             Fs_tmp = Fs_old
 
             # Small-angle rotation update inside the loop
-            omega = omega_b[i]*dt[i]
+            omega = omega_f[i]*dt[i]
             theta = np.linalg.norm(omega)
             if theta > 1e-12:
                 axis = omega / theta
@@ -451,11 +451,55 @@ def my_compute_effective_params(contact_params):
 
     return E_star, G_star, R_star, m_star
 
+
+#
+#   Faulty or alternative versions of the above contact models for demonstrative purposes.
+#
+
+""" 
+NOTES:
+
+Fs_fail_test_1
+    No elastic component, directly apply mu Fn
+
+Fs_fail_test_2
+    Keep accumulating elastic component or shear displacement, but still apply coulomb limit
+
+Fs_fail_test_3_4
+    Don't rotate the shear force vector at all.
+
+Test 5: ratcheting - not sure yet how to fail.
+    
+Fn_fail_test_6
+    Do not limit viscous force to be only repulse. Allow it to be tensile.
+
+Fn_fail_test_7
+    Completely disable the viscous force after the force has touched zero.
+
+Test 8: Continuity of viscous force - not sure yet how to fail, maybe Maxwell element.
+
+Fs_fail_test_9
+    Let the viscous component of the shear force contribute to the shear history.
+
+Fs_fail_test_10; call Fs_spring_dashpot_Coulomb_ext
+
+Test 11: shape dependence - not sure yet how to fail.
+
+Test 12: call bending function instead of roll.
+
+ """
+
+
 # End of file
 
 
 
+
+
+
+#
 # Below are some other contact models that we don't use right now.
+#
 
 def Fn_linear_elastic(contact_params, motions):
     """F_n = - k_n u_n"""

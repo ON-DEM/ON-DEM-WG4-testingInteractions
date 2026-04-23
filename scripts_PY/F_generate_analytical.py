@@ -20,6 +20,9 @@ testname = 'test_'+str(testID).zfill(2)
 doPlot = False
 Nsteps = 1.0e4
 
+# Run the faulty / alternative versions of the tests?
+doERR = True
+
 # Size parameters
 R_i = 1.0
 R_j = 1.0
@@ -436,25 +439,126 @@ elif testID == 20:
     )
 
 # Simulate contact interaction
-results = my_analytical_contact(
-    motion,
-    contact_params,
-    Fn_spring_dashpot,
-    Fs_spring_dashpot_Coulomb,
-    Tr_spring_dashpot_Coulomb,
-    Tt_spring_dashpot_Coulomb,
-    Tb_spring_dashpot_Coulomb
-    )
+if not doERR:
+    results = my_analytical_contact(
+        motion,
+        contact_params,
+        Fn_spring_dashpot,
+        Fs_spring_dashpot_Coulomb,
+        Tr_spring_dashpot_Coulomb,
+        Tt_spring_dashpot_Coulomb,
+        Tb_spring_dashpot_Coulomb
+        )
+else:
+    if testID == 1:
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_spring_dashpot,
+            Fs_fail_test_1,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    elif testID == 2:
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_spring_dashpot,
+            Fs_fail_test_2,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    elif (testID == 3) or (testID == 4):
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_spring_dashpot,
+            Fs_fail_test_3_4,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    elif testID == 5:
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_spring_dashpot,
+            Fs_fail_test_5,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    elif testID == 6:
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_fail_test_6,
+            Fs_spring_dashpot_Coulomb,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    elif testID == 7:
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_fail_test_7,
+            Fs_spring_dashpot_Coulomb,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    #elif testID == 8:
+        # Do nothing
+    elif testID == 9:
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_spring_dashpot,
+            Fs_fail_test_9,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    elif testID == 10:
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_spring_dashpot,
+            Fs_fail_test_10,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    else:
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_spring_dashpot,
+            Fs_spring_dashpot_Coulomb,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+
 
 # Writing output
-dict_to_csv(results, open('../output_ANA/theoretical_output_'+testname+'.csv', 'w'))
+if not doERR:
+    dict_to_csv(results, open('../output_ANA/theoretical_output_'+testname+'.csv', 'w'))
+else:
+    dict_to_csv(results, open('../output_ANA_ERR/theoretical_output_'+testname+'.csv', 'w'))
 
 # Embed contact_params in the results so that downstream scripts (G*, H*, I*) can
 # read the material and geometry parameters directly from the JSON without any
 # hardcoding or separate parameter files.
 results['contact_params'] = contact_params
 
-dict_to_json(results,'../output_ANA/theoretical_output_'+testname+'.json')
+if not doERR:
+    dict_to_json(results,'../output_ANA/theoretical_output_'+testname+'.json')
+else:
+    dict_to_json(results,'../output_ANA_ERR/theoretical_output_'+testname+'.json')
 
 # Plotting is obsolete here, dealt with in other scripts.
 if doPlot:

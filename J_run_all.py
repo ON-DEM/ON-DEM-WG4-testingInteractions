@@ -61,11 +61,14 @@ def main():
                         help='DEM software labels to use (default: YADE)')
     parser.add_argument('--skipana',   action='store_true',
                         help='Skip generating analytical reference data (Stage 1)')
+    parser.add_argument('--skipdem', action='store_true',
+                        help='Skip running DEM simulations and comparisons (Stage 2)')
     args = parser.parse_args()
 
     tests     = args.tests
     softwares = args.softwares
     skip_ana  = args.skipana
+    skip_dem  = args.skipdem
 
     # Tracking: key = (stage, item) → bool
     results_F = {}  # test → bool
@@ -100,28 +103,34 @@ def main():
     print("STAGE 2 — DEM simulation + comparison  (H_do_compare.py)")
     print("="*70)
 
-    for software in softwares:
-        h_dir = SCRIPTS_DEM / software
-        if not h_dir.is_dir():
-            print(f"\n  WARNING: directory not found for software '{software}': {h_dir}")
+    if skip_dem:
+        print("\n  SKIPPING Stage 2 as requested (--skipdem). Assuming DEM results exist.")
+        for software in softwares:
             for test in tests:
-                results_H[(software, test)] = False
-            continue
-
-        for test in tests:
-            # Skip if the analytical reference failed — there is nothing to compare against
-            if not results_F.get(test, False):
-                print(f"\n  SKIPPING {software} test {test:02d} — analytical reference unavailable")
-                results_H[(software, test)] = False
+                results_H[(software, test)] = True
+    else:
+        for software in softwares:
+            h_dir = SCRIPTS_DEM / software
+            if not h_dir.is_dir():
+                print(f"\n  WARNING: directory not found for software '{software}': {h_dir}")
+                for test in tests:
+                    results_H[(software, test)] = False
                 continue
 
-            label = f"H  {software}  test {test:02d}"
-            ok = run(
-                [sys.executable, H_SCRIPT, str(test)],
-                cwd=h_dir,
-                label=label,
-            )
-            results_H[(software, test)] = ok
+            for test in tests:
+                # Skip if the analytical reference failed — there is nothing to compare against
+                if not results_F.get(test, False):
+                    print(f"\n  SKIPPING {software} test {test:02d} — analytical reference unavailable")
+                    results_H[(software, test)] = False
+                    continue
+
+                label = f"H  {software}  test {test:02d}"
+                ok = run(
+                    [sys.executable, H_SCRIPT, str(test)],
+                    cwd=h_dir,
+                    label=label,
+                )
+                results_H[(software, test)] = ok
 
     # -----------------------------------------------------------------------
     # Stage 3 — generate figures and error tables (I_make_figure.py)

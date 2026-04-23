@@ -28,6 +28,8 @@ plt.rcParams['patch.linewidth'] = 0.8
 
 # Colors
 COLOR_ANA = '#4B0082'  # Dark purple
+COLOR_ANA_ERR = '#B87000'  # Dark amber – faulty reference curve
+ALPHA_ANA_ERR = 0.45       # Slightly faint so it stays non-intrusive
 COLOR_DEM = (0.1020, 0.8000, 0.1020)  # Light green
 COLOR_ZERO = 'black'
 
@@ -275,7 +277,8 @@ def write_latex_table(metrics, test_id, software_label, output_dir):
     print(f"✓ LaTeX table written to {filename}")
 
 
-def plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quantity='F'):
+def plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quantity='F',
+                ana_err_data=None):
     """Plot the x component of force (quantity='F') or torque (quantity='T') vs time.
 
     Parameters
@@ -304,14 +307,23 @@ def plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quan
     if t_dem.ndim > 1:
         t_dem = t_dem.flatten()
     
+    # Plot faulty reference curve first so it ends up below all other lines
+    if ana_err_data is not None:
+        t_err = ana_err_data['t']
+        if t_err.ndim > 1:
+            t_err = t_err.flatten()
+        ax.plot(t_err, ana_err_data[key_ana][:, 0],
+                color=COLOR_ANA_ERR, linewidth=1.5, alpha=ALPHA_ANA_ERR,
+                linestyle='-', zorder=1)
+
     # Plot analytical data
     ax.plot(t_ana, ana_data[key_ana][:, 0],
-           color=COLOR_ANA, linewidth=1.5, zorder=1)
+           color=COLOR_ANA, linewidth=1.5, zorder=2)
     
     # Plot DEM data (downsampled)
     ax.plot(t_dem, dem_data_ds[key_dem][:, 0],
            'o', color=COLOR_DEM, markersize=3, markerfacecolor=COLOR_DEM,
-           markeredgewidth=0.3, markeredgecolor='black', zorder=2)
+           markeredgewidth=0.3, markeredgecolor='black', zorder=3)
     
     # Zero line
     ax.axhline(0, color=COLOR_ZERO, linewidth=0.5, zorder=0)
@@ -340,7 +352,8 @@ def plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quan
     print(f"✓ Figure saved for Test {test_id}")
 
 
-def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir, software_label):
+def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir, software_label,
+                 ana_err_data=None):
     """Plot 3D trajectory of force components."""
     import matplotlib.ticker as ticker
     
@@ -360,13 +373,19 @@ def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir, softw
     idx1 = comp_map[comp1]
     idx2 = comp_map[comp2]
     
+    # Plot faulty reference curve first so it ends up below all other lines
+    if ana_err_data is not None:
+        ax.plot(t_ana, ana_err_data['F_i'][:, idx1], ana_err_data['F_i'][:, idx2],
+                color=COLOR_ANA_ERR, linewidth=1.5, alpha=ALPHA_ANA_ERR,
+                linestyle='-', zorder=1)
+
     # Plot analytical data
     ax.plot(t_ana, ana_data['F_i'][:, idx1], ana_data['F_i'][:, idx2],
-           color=COLOR_ANA, linewidth=1.5, zorder=1)
+           color=COLOR_ANA, linewidth=1.5, zorder=2)
     
     # Plot DEM data (downsampled)
     ax.scatter(t_dem, dem_data_ds['F_i'][:, idx1], dem_data_ds['F_i'][:, idx2],
-              c=[COLOR_DEM], s=20, edgecolors='black', linewidths=0.3, zorder=2)
+              c=[COLOR_DEM], s=20, edgecolors='black', linewidths=0.3, zorder=3)
     
     # Grid
     ax.grid(True, alpha=0.15, linewidth=0.3)
@@ -450,7 +469,8 @@ def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir, softw
     print(f"✓ Figure saved for Test {test_id}")
 
 
-def plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label):
+def plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
+                     ana_err_data=None):
     """Plot 3D trajectory in force space (F_x, F_y, F_z) without a time axis.
 
     Used for complex motion tests (15, 18, 20) where the signal of interest is
@@ -463,13 +483,19 @@ def plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label)
     fig = plt.figure(figsize=(3.5, 3.0))
     ax = fig.add_subplot(111, projection='3d')
 
+    # Plot faulty reference curve first so it ends up below all other lines
+    if ana_err_data is not None:
+        ax.plot(ana_err_data['F_i'][:, 0], ana_err_data['F_i'][:, 1], ana_err_data['F_i'][:, 2],
+                color=COLOR_ANA_ERR, linewidth=1.5, alpha=ALPHA_ANA_ERR,
+                linestyle='-', zorder=1)
+
     # Plot analytical data
     ax.plot(ana_data['F_i'][:, 0], ana_data['F_i'][:, 1], ana_data['F_i'][:, 2],
-            color=COLOR_ANA, linewidth=1.5, zorder=1)
+            color=COLOR_ANA, linewidth=1.5, zorder=2)
 
     # Plot DEM data (downsampled)
     ax.scatter(dem_data_ds['F_i'][:, 0], dem_data_ds['F_i'][:, 1], dem_data_ds['F_i'][:, 2],
-               c=[COLOR_DEM], s=20, edgecolors='black', linewidths=0.3, zorder=2)
+               c=[COLOR_DEM], s=20, edgecolors='black', linewidths=0.3, zorder=3)
 
     # Grid
     ax.grid(True, alpha=0.15, linewidth=0.3)
@@ -546,6 +572,7 @@ def main():
     # Set up paths
     script_dir = Path(__file__).parent
     ana_file = script_dir / '..' / 'output_ANA' / f'theoretical_output_test_{test_id:02d}.json'
+    ana_err_file = script_dir / '..' / 'output_ANA_ERR' / f'theoretical_output_test_{test_id:02d}.json'
     dem_file = script_dir / '..' / 'output_DEM' / f'dem_output_{software_label}_test_{test_id:02d}.csv'
     report_dir = script_dir / '..' / 'output_REPORT'
     output_dir = script_dir / '..' / 'figures' 
@@ -566,6 +593,13 @@ def main():
     ana_data = json_to_dict(str(ana_file))
     dem_data = load_dem_data(str(dem_file))
     
+    # Load faulty reference data if available (same filename, different folder)
+    if ana_err_file.exists():
+        print(f"  Faulty ref: {ana_err_file.name}  (output_ANA_ERR)")
+        ana_err_data = json_to_dict(str(ana_err_file))
+    else:
+        ana_err_data = None
+    
     print(f"✓ Loaded {len(ana_data['t'])} analytical points")
     print(f"✓ Loaded {len(dem_data['t'])} DEM points")
     
@@ -583,28 +617,36 @@ def main():
     # Create figure based on test ID
     print("\nGenerating high-quality figure...")
     if test_id in [1, 2]:
-        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label)
+        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
+                    ana_err_data=ana_err_data)
     elif test_id == 3:
-        plot_test_3d(ana_data, dem_data_ds, test_id, 'y', 'z', output_dir, software_label)
+        plot_test_3d(ana_data, dem_data_ds, test_id, 'y', 'z', output_dir, software_label,
+                     ana_err_data=ana_err_data)
     elif test_id == 4:
-        plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'y', output_dir, software_label)
+        plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'y', output_dir, software_label,
+                     ana_err_data=ana_err_data)
     elif test_id == 5:
-        plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'z', output_dir, software_label)
+        plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'z', output_dir, software_label,
+                     ana_err_data=ana_err_data)
     elif test_id in [6, 7, 8, 9, 10, 11]:
         # Force x vs time
-        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label)
+        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
+                    ana_err_data=ana_err_data)
     elif test_id in [12, 13, 14]:
         # Torque x vs time: the physically meaningful signal for these tests
         # (size-dependent stiffness, large-ratio shear rotation, rolling/bending
         # distinction) is best observed in the torque rather than the force.
-        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quantity='T')
+        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quantity='T',
+                    ana_err_data=ana_err_data)
     elif test_id in [15, 18, 20]:
         # 3D force-space trajectory: axes are F_x, F_y, F_z (no time axis).
         # Used for complex motion tests where the force vector traces a 3D path.
-        plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label)
+        plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
+                         ana_err_data=ana_err_data)
     elif test_id in [16, 17, 19]:
         # Force x vs time for remaining tests
-        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label)
+        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
+                    ana_err_data=ana_err_data)
     else:
         print(f"WARNING: No figure specification for Test {test_id}")
     

@@ -201,7 +201,7 @@ O.engines = [
 	PyRunner(command='saveKinematics()',    initRun=True, iterPeriod=1),
 	PyRunner(command='imposeState()',       initRun=True, iterPeriod=1),
 	InteractionLoop(
-		[Ig2_Sphere_Sphere_ScGeom6D(avoidGranularRatcheting=True,exactRotations=True,updateRotations=True)], # updateRotations must be true if using bending.
+		[Ig2_Sphere_Sphere_ScGeom6D(avoidGranularRatcheting=True,exactRotations=True)],
 		[Ip2_MaxwellMat_MaxwellMat_MaxwellPhys(
 			kn=MatchMaker(algo='val', val=kn),
 			ks=MatchMaker(algo='val', val=ks)

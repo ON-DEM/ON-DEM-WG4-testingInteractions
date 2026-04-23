@@ -174,7 +174,7 @@ def Fs_spring_dashpot_Coulomb_ext(contact_params, motions, Fn):
             Fs_old = Fs_tmp.copy()
 
             # Add viscous component
-            Fs_tmp -= eta_s * v_s
+            Fs_tmp -= eta_s * v_s[i]
             # No limit on viscous contribution (this is a modelling choice!)
 
             # Save total shear force
@@ -473,10 +473,10 @@ Test 5: ratcheting - not sure yet how to fail.
 Fn_fail_test_6
     Do not limit viscous force to be only repulse. Allow it to be tensile.
 
-Fn_fail_test_7
+Fn_fail_test_7 # Not so sure about this one.
     Completely disable the viscous force after the force has touched zero.
 
-Test 8: Continuity of viscous force - not sure yet how to fail, maybe Maxwell element.
+Fn_fail_test_8: Continuity of viscous force - not sure yet how to fail, maybe Maxwell element.
 
 Fs_fail_test_9
     Let the viscous component of the shear force contribute to the shear history.
@@ -488,6 +488,411 @@ Test 11: shape dependence - not sure yet how to fail.
 Test 12: call bending function instead of roll.
 
  """
+
+
+def Fs_fail_test_1(contact_params, motions, Fn):
+
+    """
+    Failure mode for test 1:
+    No elastic component; shear force is set directly to mu*|Fn| opposing the sliding velocity.
+    There is no spring, so there is no static friction — the contact is always at the Coulomb limit
+    whenever sliding occurs. Without a velocity the shear force is zero (no direction to apply it).
+    """
+    mu_s    = contact_params['mu_s']
+    u_n     = np.array(motions['u_n'], dtype=float)
+    v_s     = np.array(motions['v_s'], dtype=float)
+
+    # Only act where there is contact
+    active  = (u_n.ravel() > 0)
+    Fn_mag  = np.linalg.norm(Fn, axis=1)
+
+    N       = v_s.shape[0]
+    Fs      = np.zeros((N, 3))
+    for i in range(N):
+        if not active[i]:
+            continue
+        v_s_mag = np.linalg.norm(v_s[i])
+        if v_s_mag > 1e-12:
+            # Always at the Coulomb limit, direction opposes sliding velocity
+            Fs[i] = -mu_s * Fn_mag[i] * v_s[i] / v_s_mag
+        # else: zero shear force — no elastic spring to hold a direction at rest
+
+    return Fs
+
+
+
+def Fs_fail_test_2(contact_params, motions, Fn):
+
+    """
+    Failure mode for test 2:
+    The elastic spring displacement is accumulated without capping at the Coulomb limit
+    (the spring 'winds up' during sustained sliding). The output force is still Coulomb-limited,
+    but Fs_old is saved before capping, so the stored state grows without bound.
+    This causes a large stored elastic force to snap back when sliding stops.
+    """
+    k_s     = contact_params['k_s']
+    eta_s   = contact_params['eta_s']
+    mu_s    = contact_params['mu_s']
+    u_n     = np.array(motions['u_n'], dtype=float)
+    v_s     = np.array(motions['v_s'], dtype=float)
+    du_s    = np.array(motions['du_s'], dtype=float)
+    omega_f = np.asarray(motions['omega_f'], dtype=float)
+    dt      = np.array(motions['dt'], dtype=float)
+
+    mask    = (u_n.ravel() == 0.0)
+    Fn_mag  = np.linalg.norm(Fn, axis=1)
+    N, dim  = du_s.shape
+
+    Fs      = np.zeros((N, dim))
+    Fs[0]   = 0
+    Fs_tmp  = np.zeros(3)
+    Fs_old  = np.zeros(3)
+
+    for i in range(N):
+        if mask[i]:
+            Fs[i]   = 0.0
+            Fs_old  = np.zeros(3)
+        else:
+            Fs_tmp  = Fs_old
+
+            # Small-angle rotation update inside the loop
+            omega   = omega_f[i] * dt[i]
+            theta   = np.linalg.norm(omega)
+            if theta > 1e-12:
+                axis = omega / theta
+
+                # Rodrigues' rotation formula for rotation matrix
+                K = np.array([
+                    [0, -axis[2], axis[1]],
+                    [axis[2], 0, -axis[0]],
+                    [-axis[1], axis[0], 0]
+                ])
+                R       = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
+                Fs_tmp  = R @ Fs_tmp
+
+            # Integrate increment
+            Fs_tmp -= k_s * du_s[i]
+
+            # Fail: save elastic component BEFORE capping — spring winds up without bound
+            Fs_old  = Fs_tmp.copy()
+
+            # Apply Coulomb limit to the output only
+            Fs_mag  = np.linalg.norm(Fs_tmp)
+            Fs_max  = mu_s * Fn_mag[i]
+            if Fs_mag > Fs_max:
+                Fs_tmp *= (Fs_max / Fs_mag)
+
+            # Add viscous component
+            Fs_tmp -= eta_s * v_s[i]
+
+            # Apply Coulomb limit again (this is a modelling choice!)
+            Fs_mag  = np.linalg.norm(Fs_tmp)
+            if Fs_mag > Fs_max:
+                Fs_tmp *= (Fs_max / Fs_mag)
+
+            Fs[i]   = Fs_tmp.copy() # copy to avoid aliasing
+
+    return Fs
+
+
+
+def Fs_fail_test_3_4(contact_params, motions, Fn):
+
+    """
+    Failure mode for tests 3 and 4:
+    The accumulated elastic shear force is never rotated to track the evolving contact frame.
+    For contacts where the contact normal rotates (e.g. rolling), the stored force vector drifts
+    out of the tangent plane, producing unphysical components in the normal direction.
+    """
+    k_s     = contact_params['k_s']
+    eta_s   = contact_params['eta_s']
+    mu_s    = contact_params['mu_s']
+    u_n     = np.array(motions['u_n'], dtype=float)
+    v_s     = np.array(motions['v_s'], dtype=float)
+    du_s    = np.array(motions['du_s'], dtype=float)
+    # omega_f and dt are still read (present in motions) but intentionally unused below
+    dt      = np.array(motions['dt'], dtype=float)
+
+    mask    = (u_n.ravel() == 0.0)
+    Fn_mag  = np.linalg.norm(Fn, axis=1)
+
+    N, dim  = du_s.shape
+    Fs      = np.zeros((N, dim))
+    Fs[0]   = 0
+
+    Fs_tmp  = np.zeros(3)
+    Fs_old  = np.zeros(3)
+
+    for i in range(N):
+        if mask[i]:
+            Fs[i]   = 0.0
+            Fs_old  = np.zeros(3)
+
+        else:
+            # Retrieve previous shear force WITHOUT any rotation update (the fail)
+            Fs_tmp  = Fs_old
+
+            # Integrate increment
+            Fs_tmp -= k_s * du_s[i]
+
+            # Apply Coulomb limit
+            Fs_mag  = np.linalg.norm(Fs_tmp)
+            Fs_max  = mu_s * Fn_mag[i]
+            if Fs_mag > Fs_max:
+                Fs_tmp *= (Fs_max / Fs_mag)
+            
+            # Save elastic component for next time step
+            Fs_old  = Fs_tmp.copy() # copy to avoid aliasing
+
+            # Add viscous component
+            Fs_tmp -= eta_s * v_s[i]
+
+            # Apply Coulomb limit, again (this is a modelling choice!)
+            Fs_mag  = np.linalg.norm(Fs_tmp)
+            if Fs_mag > Fs_max:
+                Fs_tmp *= (Fs_max / Fs_mag)
+
+            Fs[i]   = Fs_tmp.copy() # copy to avoid aliasing
+
+    return Fs
+
+
+
+def Fs_fail_test_5(contact_params, motions, Fn):
+    """
+    Linear spring-dashpot in parallel capped by Coulomb limit
+    Fs = - k_s * u_s * n_s - eta_s * v_s, with |Fs| <= mu*|Fn|
+    """
+    k_s     = contact_params['k_s']                         # (1)
+    eta_s   = contact_params['eta_s']                       # (1)
+    mu_s      = contact_params['mu_s']                          # (1)
+    u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
+    #v_s     = np.array(motions['v_s'], dtype=float)         # (N,3)
+    #du_s    = np.array(motions['du_s'], dtype=float)        # (N,3) - over the last time step
+    omega_f = np.asarray(motions['omega_f'], dtype=float)   # (N,3)
+    dt      = np.array(motions['dt'], dtype=float)          # (1)
+    R_i     = contact_params['R_i']
+    R_j     = contact_params['R_j']
+    n_ij    = np.array(motions['n_ij'], dtype=float)        # (N,3)
+    v_i     = np.array(motions['v_i'], dtype=float)        # (N,3)
+    v_j     = np.array(motions['v_j'], dtype=float)        # (N,3)
+    omega_i = np.array(motions['omega_i'], dtype=float)    # (N,3)
+    omega_j = np.array(motions['omega_j'], dtype=float)    # (N,3)
+
+    # Test for contact
+    mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
+
+    # Normal force magnitudes
+    Fn_mag = np.linalg.norm(Fn, axis=1)
+
+    # Arm lengths for manual shear velocity calculation
+    r_i = (R_i - u_n) * n_ij
+    r_j = (R_j - u_n) * n_ij
+
+    # Accumulate shear force
+    N, dim = n_ij.shape
+    Fs = np.zeros((N,dim))
+    Fs[0] = 0
+    Fs_tmp = np.zeros(3)
+    Fs_old = np.zeros(3)
+    for i in range(N):
+        # Shear force and displacement are lost if contact is lost
+        if mask[i]:
+            Fs[i] = 0.0
+            Fs_old = np.zeros(3)
+        else:
+            # Retrieve elastic component previous shear force
+            Fs_tmp = Fs_old
+
+            # Manually compute shear displacement and velocity
+            v_rel = (v_j[i] + np.cross(omega_j[i], r_j[i]) - (v_i[i] + np.cross(omega_i[i], r_i[i])))
+            v_s = v_rel - np.dot(n_ij[i], v_rel) * n_ij[i] # Relative velocity projected to tangent plane
+            du_s = v_s * dt[i]
+
+            # Small-angle rotation update inside the loop
+            omega = omega_f[i]*dt[i]
+            theta = np.linalg.norm(omega)
+            if theta > 1e-12: # Bad magic number
+                axis = omega / theta
+                # Rodrigues’ rotation formula for rotation matrix
+                K = np.array([
+                    [0, -axis[2], axis[1]],
+                    [axis[2], 0, -axis[0]],
+                    [-axis[1], axis[0], 0]
+                ])
+                R = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
+                Fs_tmp = R @ Fs_tmp
+
+            # Integrate increment
+            Fs_tmp -= k_s * du_s
+            # Apply Coulomb limit
+            Fs_mag = np.linalg.norm(Fs_tmp)
+            Fs_max = mu_s * Fn_mag[i]
+            if Fs_mag > Fs_max:
+                Fs_tmp *= (Fs_max / Fs_mag)
+            
+            # Save elastic component for next time step
+            Fs_old = Fs_tmp.copy() # copy to avoid aliasing
+
+            # Add viscous component
+            Fs_tmp -= eta_s * v_s
+            # Apply Coulomb limit, again (this is a modelling choice!)
+            Fs_mag = np.linalg.norm(Fs_tmp)
+            if Fs_mag > Fs_max:
+                Fs_tmp *= (Fs_max / Fs_mag)
+
+            # Save total shear force
+            Fs[i] = Fs_tmp.copy() # copy to avoid aliasing
+
+    return Fs
+
+
+def Fn_fail_test_6(contact_params, motions):
+    """
+    Failure mode for test 6:
+    The total normal force is NOT clipped to zero — tensile viscous forces are allowed.
+    During rapid separation the dashpot can pull the particles back together, which is
+    unphysical for a granular contact without cohesion.
+    """
+    k_n     = contact_params['k_n']     # (1)
+    eta_n   = contact_params['eta_n']   # (1)
+    u_n     = motions['u_n'].reshape(-1)    # (N,1)
+    v_ijn   = motions['v_ijn']              # (N,3)
+    n_ij    = motions['n_ij']               # (N,3)
+
+    active  = (u_n > 0)
+
+    # Normal velocity magnitude (separation +, approach -), swapped so that approach is resistive
+    v_n     = - np.einsum('ij,ij->i', v_ijn, n_ij)
+    Fn_mag  = np.zeros_like(u_n)
+    Fn_mag[active] = k_n * u_n[active] + eta_n * v_n[active]
+
+    # Fail: do NOT apply np.maximum(Fn_mag, 0) — tensile total force is allowed
+    Fn = - Fn_mag[:, None] * n_ij
+
+    return Fn
+
+
+
+
+def Fn_fail_test_7(contact_params, motions): # NOT EXACTLY WHAT I INTENDED
+
+    """
+    Failure mode for test 7:
+    The viscous dashpot is completely disabled once the contact enters the separation phase
+    (v_n < 0, i.e. particles moving apart). Only the elastic spring acts during separation,
+    as if the dashpot is switched off the moment the force would first touch zero.
+    This is asymmetric: energy is dissipated during approach but not during rebound.
+    """
+    k_n     = contact_params['k_n']     # (1)
+    eta_n   = contact_params['eta_n']   # (1)
+    u_n     = motions['u_n'].reshape(-1)    # (N,1)
+    v_ijn   = motions['v_ijn']              # (N,3)
+    n_ij    = motions['n_ij']               # (N,3)
+
+    active  = (u_n > 0)
+
+    # Normal velocity magnitude (separation +, approach -), swapped so that approach is resistive
+    v_n     = - np.einsum('ij,ij->i', v_ijn, n_ij)
+
+    # Fail: only add viscous damping during approach (v_n > 0), disabled during separation
+    approaching = (v_n > 0)
+    Fn_mag  = np.zeros_like(u_n)
+    Fn_mag[active]              = k_n * u_n[active]
+    Fn_mag[active & approaching] += eta_n * v_n[active & approaching]
+    Fn_mag  = np.maximum(Fn_mag, 0) # No adhesion in this model
+
+    Fn = - Fn_mag[:, None] * n_ij
+
+    return Fn
+
+
+# Fs_fail_test_8
+
+
+def Fs_fail_test_9(contact_params, motions, Fn):
+    """
+    Failure mode for test 9:
+    The viscous component of the shear force is incorrectly included in the accumulated
+    elastic history (Fs_old). The rate-dependent dashpot force contaminates the elastic
+    state carried to the next time step, causing the stored spring force to be
+    velocity-dependent and introducing drift over time.
+    """
+    k_s     = contact_params['k_s']                         # (1)
+    eta_s   = contact_params['eta_s']                       # (1)
+    mu_s    = contact_params['mu_s']                        # (1)
+    u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
+    v_s     = np.array(motions['v_s'], dtype=float)         # (N,3)
+    du_s    = np.array(motions['du_s'], dtype=float)        # (N,3) - over the last time step
+    omega_f = np.asarray(motions['omega_f'], dtype=float)   # (N,3)
+    dt      = np.array(motions['dt'], dtype=float)          # (1)
+
+    mask    = (u_n.ravel() == 0.0)
+    Fn_mag  = np.linalg.norm(Fn, axis=1)
+    N, dim  = du_s.shape
+
+    Fs      = np.zeros((N, dim))
+    Fs[0]   = 0
+    Fs_tmp  = np.zeros(3)
+    Fs_old  = np.zeros(3)
+    for i in range(N):
+        if mask[i]:
+            Fs[i]   = 0.0
+            Fs_old  = np.zeros(3)
+        else:
+            Fs_tmp  = Fs_old
+
+            # Small-angle rotation update inside the loop
+            omega   = omega_f[i] * dt[i]
+            theta   = np.linalg.norm(omega)
+            if theta > 1e-12:
+                axis = omega / theta
+                # Rodrigues' rotation formula for rotation matrix
+                K = np.array([
+                    [0, -axis[2], axis[1]],
+                    [axis[2], 0, -axis[0]],
+                    [-axis[1], axis[0], 0]
+                ])
+                R       = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
+                Fs_tmp  = R @ Fs_tmp
+
+            # Integrate increment
+            Fs_tmp -= k_s * du_s[i]
+
+            # Apply Coulomb limit
+            Fs_mag  = np.linalg.norm(Fs_tmp)
+            Fs_max  = mu_s * Fn_mag[i]
+            if Fs_mag > Fs_max:
+                Fs_tmp *= (Fs_max / Fs_mag)
+
+            # Add viscous component
+            Fs_tmp -= eta_s * v_s[i]
+
+            # Apply Coulomb limit, again (this is a modelling choice!)
+            Fs_mag  = np.linalg.norm(Fs_tmp)
+            if Fs_mag > Fs_max:
+                Fs_tmp *= (Fs_max / Fs_mag)
+
+            # Fail: save total force (viscous included) as next step's elastic history
+            Fs_old  = Fs_tmp.copy() # copy to avoid aliasing
+            Fs[i]   = Fs_tmp.copy() # copy to avoid aliasing
+
+    return Fs
+
+
+
+def Fs_fail_test_10(contact_params, motions, Fn):
+    """
+    Failure mode for test 10:
+    Delegates to Fs_spring_dashpot_Coulomb_ext, in which the viscous dashpot contribution
+    is excluded from the Coulomb limit check. The dashpot force is added on top of the
+    already-limited elastic force with no further cap, allowing the total shear force to
+    exceed mu*|Fn| whenever there is a non-zero slip velocity.
+    """
+    return Fs_spring_dashpot_Coulomb_ext(contact_params, motions, Fn)
+
+
+
 
 
 # End of file

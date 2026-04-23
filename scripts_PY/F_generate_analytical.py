@@ -21,7 +21,7 @@ doPlot = False
 Nsteps = 1.0e4
 
 # Run the faulty / alternative versions of the tests?
-doERR = True
+doERR = False
 
 # Size parameters
 R_i = 1.0
@@ -256,7 +256,7 @@ elif testID == 12:
         [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
         0, 0, 0, 0, 0, [0,0,0.98*(R_i+R_j)], # constant contact (~2% initial overlap)
         0, 0, 0, 0, 0,                       # no twist
-        0, 0.1*np.pi, 1.0, 0, 0,                # pure oscillating roll
+        0, 0.1*np.pi, 1.0, 0, 0,             # pure oscillating roll
         0, 0, 0, 0, 0,                       # no shear: F_s must remain zero
         [1.0,0,0], [0,1.0,0],                # roll and shear axes
         tmax, dt,
@@ -528,6 +528,20 @@ else:
             contact_params,
             Fn_spring_dashpot,
             Fs_fail_test_10,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    
+    elif testID == 12:
+        Reff = 2.0*(contact_params['R_i'] * contact_params['R_j']) / (contact_params['R_i'] + contact_params['R_j'])
+        contact_params['k_b'] = contact_params['k_r'] * Reff
+        contact_params['k_r'] = 0.0
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_spring_dashpot,
+            Fs_spring_dashpot_Coulomb,
             Tr_spring_dashpot_Coulomb,
             Tt_spring_dashpot_Coulomb,
             Tb_spring_dashpot_Coulomb

@@ -29,7 +29,7 @@ plt.rcParams['patch.linewidth'] = 0.8
 # Colors
 COLOR_ANA = '#4B0082'  # Dark purple
 COLOR_ANA_ERR = '#B87000'  # Dark amber – faulty reference curve
-ALPHA_ANA_ERR = 0.45       # Slightly faint so it stays non-intrusive
+ALPHA_ANA_ERR = 0.75       # Slightly faint so it stays non-intrusive
 COLOR_DEM = (0.1020, 0.8000, 0.1020)  # Light green
 COLOR_ZERO = 'black'
 

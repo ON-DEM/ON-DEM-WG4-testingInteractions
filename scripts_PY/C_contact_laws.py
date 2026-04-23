@@ -245,7 +245,7 @@ def Tr_spring_dashpot_Coulomb(contact_params, motions, Fn):
                 Tr_tmp = R @ Tr_tmp
 
             # Integrate increment
-            Tr_tmp -= np.cross(k_r * du_r[i], rollArm[i])
+            Tr_tmp -= np.cross(rollArm[i], k_r * du_r[i])
             # Apply Coulomb limit
             Tr_mag = np.linalg.norm(Tr_tmp)
             Tr_max = mu_r * R_eff * Fn_mag[i]
@@ -256,7 +256,7 @@ def Tr_spring_dashpot_Coulomb(contact_params, motions, Fn):
             Tr_old = Tr_tmp.copy() # copy to avoid aliasing
 
             # Add viscous component
-            Tr_tmp -= np.cross(eta_r * v_r[i], rollArm[i])
+            Tr_tmp -= np.cross(rollArm[i], eta_r * v_r[i])
             # Apply Coulomb limit, again (this is a modelling choice!)
             Tr_mag = np.linalg.norm(Tr_tmp)
             if Tr_mag > Tr_max:
@@ -459,29 +459,7 @@ def my_compute_effective_params(contact_params):
 """ 
 NOTES:
 
-Fs_fail_test_1
-    No elastic component, directly apply mu Fn
-
-Fs_fail_test_2
-    Keep accumulating elastic component or shear displacement, but still apply coulomb limit
-
-Fs_fail_test_3_4
-    Don't rotate the shear force vector at all.
-
-Test 5: ratcheting - not sure yet how to fail.
-    
-Fn_fail_test_6
-    Do not limit viscous force to be only repulse. Allow it to be tensile.
-
-Fn_fail_test_7 # Not so sure about this one.
-    Completely disable the viscous force after the force has touched zero.
-
 Fn_fail_test_8: Continuity of viscous force - not sure yet how to fail, maybe Maxwell element.
-
-Fs_fail_test_9
-    Let the viscous component of the shear force contribute to the shear history.
-
-Fs_fail_test_10; call Fs_spring_dashpot_Coulomb_ext
 
 Test 11: shape dependence - not sure yet how to fail.
 
@@ -685,9 +663,7 @@ def Fs_fail_test_5(contact_params, motions, Fn):
     # Normal force magnitudes
     Fn_mag = np.linalg.norm(Fn, axis=1)
 
-    # Arm lengths for manual shear velocity calculation
-    r_i = (R_i - u_n) * n_ij
-    r_j = (R_j - u_n) * n_ij
+    
 
     # Accumulate shear force
     N, dim = n_ij.shape
@@ -704,8 +680,13 @@ def Fs_fail_test_5(contact_params, motions, Fn):
             # Retrieve elastic component previous shear force
             Fs_tmp = Fs_old
 
+            # Arm lengths for manual shear velocity calculation
+            r_i = R_i - 0.5*u_n[i]
+            r_j = R_j - 0.5*u_n[i]
+
             # Manually compute shear displacement and velocity
-            v_rel = (v_j[i] + np.cross(omega_j[i], r_j[i]) - (v_i[i] + np.cross(omega_i[i], r_i[i])))
+            v_rel = (v_j[i] + r_j * np.cross(-n_ij[i], omega_j[i])) - (v_i[i] + r_i * np.cross(n_ij[i], omega_i[i]))
+            # Above is same as v_j - v_i + r_i * omega_i x n_ij + r_j * omega_j x n_ij
             v_s = v_rel - np.dot(n_ij[i], v_rel) * n_ij[i] # Relative velocity projected to tangent plane
             du_s = v_s * dt[i]
 

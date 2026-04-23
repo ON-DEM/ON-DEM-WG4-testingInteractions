@@ -203,10 +203,13 @@ O.engines = [
 	InteractionLoop(
 		[Ig2_Sphere_Sphere_ScGeom6D(avoidGranularRatcheting=True,exactRotations=True)],
 		[Ip2_MaxwellMat_MaxwellMat_MaxwellPhys(
-			kn=MatchMaker(algo='val', val=kn),
-			ks=MatchMaker(algo='val', val=ks)
+			kn=MatchMaker(algo='val', val=kn), etan=MatchMaker(algo='val', val=etan),
+			ks=MatchMaker(algo='val', val=ks), etas=MatchMaker(algo='val', val=etas),
+			kr=MatchMaker(algo='val', val=kr), etar=MatchMaker(algo='val', val=etar),
+			kt=MatchMaker(algo='val', val=kt), etat=MatchMaker(algo='val', val=etat),
+			kb=MatchMaker(algo='val', val=kb), etab=MatchMaker(algo='val', val=etab)
 		)],
-		[Law2_ScGeom_MaxwellPhys_general(limitViscousPart=True,hasBending=False)]
+		[Law2_ScGeom_MaxwellPhys_general(limitViscousPart=True,hasBending=True)]
 	),
 	PyRunner(command='saveForcesTorques()', initRun=True, iterPeriod=1),
 	NewtonIntegrator(gravity=(0, 0, 0), damping=0)

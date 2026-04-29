@@ -470,40 +470,56 @@ def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir, softw
 
 
 def plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
-                     ana_err_data=None):
-    """Plot 3D trajectory in force space (F_x, F_y, F_z) without a time axis.
+                     quantity='F', ana_err_data=None):
+    """Plot 3D trajectory in force or torque space without a time axis.
 
-    Used for complex motion tests (15, 18, 20) where the signal of interest is
-    the path traced by the force vector through 3D space rather than its
+    Used for complex motion tests where the signal of interest is the path
+    traced by the force/torque vector through 3D space rather than its
     time-evolution along a single component.  Axis labels are therefore the
-    three force components, not 'Time (s)'.
+    three vector components, not 'Time (s)'.
+
+    Parameters
+    ----------
+    quantity : 'F' for force (default), 'T' for torque.
     """
     import matplotlib.ticker as ticker
+
+    # Select data key and axis labels based on quantity
+    if quantity == 'T':
+        key = 'T_i'
+        xlabel = r'$T_{i,x}$ (N$\cdot$m)'
+        ylabel = r'$T_{i,y}$ (N$\cdot$m)'
+        zlabel = r'$T_{i,z}$ (N$\cdot$m)'
+    else:
+        key = 'F_i'
+        xlabel = r'$F_{i,x}$ (N)'
+        ylabel = r'$F_{i,y}$ (N)'
+        zlabel = r'$F_{i,z}$ (N)'
 
     fig = plt.figure(figsize=(3.5, 3.0))
     ax = fig.add_subplot(111, projection='3d')
 
     # Plot faulty reference curve first so it ends up below all other lines
     if ana_err_data is not None:
-        ax.plot(ana_err_data['F_i'][:, 0], ana_err_data['F_i'][:, 1], ana_err_data['F_i'][:, 2],
+        ax.plot(ana_err_data[key][:, 0], ana_err_data[key][:, 1], ana_err_data[key][:, 2],
                 color=COLOR_ANA_ERR, linewidth=1.5, alpha=ALPHA_ANA_ERR,
                 linestyle='-', zorder=1)
 
     # Plot analytical data
-    ax.plot(ana_data['F_i'][:, 0], ana_data['F_i'][:, 1], ana_data['F_i'][:, 2],
+    ax.plot(ana_data[key][:, 0], ana_data[key][:, 1], ana_data[key][:, 2],
             color=COLOR_ANA, linewidth=1.5, zorder=2)
 
     # Plot DEM data (downsampled)
-    ax.scatter(dem_data_ds['F_i'][:, 0], dem_data_ds['F_i'][:, 1], dem_data_ds['F_i'][:, 2],
+    ax.scatter(dem_data_ds[key][:, 0], dem_data_ds[key][:, 1], dem_data_ds[key][:, 2],
                c=[COLOR_DEM], s=20, edgecolors='black', linewidths=0.3, zorder=3)
 
     # Grid
     ax.grid(True, alpha=0.15, linewidth=0.3)
 
     # Axis labels
-    ax.set_xlabel(r'$F_{i,x}$ (N)')
-    ax.set_ylabel(r'$F_{i,y}$ (N)')
-    ax.set_zlabel(r'$F_{i,z}$ (N)')
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_zlabel(zlabel)
 
     def get_nice_limits(data):
         """Get nice round axis limits with a 10% margin."""
@@ -532,7 +548,7 @@ def plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
         (ax.set_ylim, ax.set_ylabel, 'y'),
         (ax.set_zlim, ax.set_zlabel, 'z'),
     ]):
-        data_all = np.concatenate([ana_data['F_i'][:, idx], dem_data_ds['F_i'][:, idx]])
+        data_all = np.concatenate([ana_data[key][:, idx], dem_data_ds[key][:, idx]])
         lim_min, lim_max = get_nice_limits(data_all)
         setter(lim_min, lim_max)
         if max(abs(lim_min), abs(lim_max)) > 1000:
@@ -632,21 +648,35 @@ def main():
         # Force x vs time
         plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
                     ana_err_data=ana_err_data)
-    elif test_id in [12, 13, 14]:
-        # Torque x vs time: the physically meaningful signal for these tests
-        # (size-dependent stiffness, large-ratio shear rotation, rolling/bending
-        # distinction) is best observed in the torque rather than the force.
+    elif test_id == 12:
+        # Torque x vs time: the physically meaningful signal for this test
+        # is best observed in the torque rather than the force.
         plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quantity='T',
                     ana_err_data=ana_err_data)
-    elif test_id in [15, 18, 20]:
+    elif test_id == 13:
         # 3D force-space trajectory: axes are F_x, F_y, F_z (no time axis).
-        # Used for complex motion tests where the force vector traces a 3D path.
         plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
                          ana_err_data=ana_err_data)
-    elif test_id in [16, 17, 19]:
-        # Force x vs time for remaining tests
+    elif test_id in [14, 15, 16]:
+        # 3D torque-space trajectory: axes are T_x, T_y, T_z (no time axis).
+        plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
+                         quantity='T', ana_err_data=ana_err_data)
+    elif test_id in [17, 18]:
+        # Force x vs time
         plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
                     ana_err_data=ana_err_data)
+    elif test_id == 19:
+        # 3D force-space trajectory: axes are F_x, F_y, F_z (no time axis).
+        plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
+                         ana_err_data=ana_err_data)
+    elif test_id == 20:
+        # Force x vs time
+        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
+                    ana_err_data=ana_err_data)
+    elif test_id == 21:
+        # 3D force-space trajectory: axes are F_x, F_y, F_z (no time axis).
+        plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
+                         ana_err_data=ana_err_data)
     else:
         print(f"WARNING: No figure specification for Test {test_id}")
     

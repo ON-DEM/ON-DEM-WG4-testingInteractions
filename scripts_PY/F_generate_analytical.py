@@ -236,17 +236,8 @@ elif testID == 11:
     )
 elif testID == 12:
     # Distinction between rolling and bending
-    #
-    # Verification criterion: rolling and bending are distinct kinematic modes when
-    # R_i ≠ R_j (Sec. 4.12, Eq. 26-28). Under pure rolling (ωr ≠ 0, ωs = 0), a
-    # bending model incorrectly introduces a shear component proportional to
-    # (R_j - R_i)/(R_i + R_j). At the 4:1 size ratio used here that spurious
-    # shear component is 60% of the rolling velocity, making the error easily visible.
-    # The analytical shear force is zero throughout; any non-zero F_s in the DEM
-    # output indicates a bending model was used where a rolling model is required.
-    # This is a modelling choice that must be made consciously.
     R_i = 2.0    # large particle
-    R_j = 0.5    # small particle  (size ratio 4:1)
+    R_j = 0.2    # small particle  (size ratio 10:1)
     R = (R_i + R_j) / 2.0    # = 1.25
     contact_params['k_r'] = 0.25e7
     contact_params['R_i'] = R_i
@@ -256,47 +247,54 @@ elif testID == 12:
         [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
         0, 0, 0, 0, 0, [0,0,0.98*(R_i+R_j)], # constant contact (~2% initial overlap)
         0, 0, 0, 0, 0,                       # no twist
-        0, 0.1*np.pi, 1.0, 0, 0,             # pure oscillating roll
+        0, 0.05*np.pi, 1.0, 0, 0,             # pure oscillating roll
         0, 0, 0, 0, 0,                       # no shear: F_s must remain zero
         [1.0,0,0], [0,1.0,0],                # roll and shear axes
         tmax, dt,
         R_i, R_j
     )
 elif testID == 13:
-    # Complex rolling motion
-    contact_params['k_r'] = 0.25e7
+    # Complex shearing motion
     motion = my_analytical_motion(
-        [0,0,0],[0,0,0],[1.0,0,0],           # tilt rigid-body rotation (ωb along x)
-        [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
-        0, 0, 0, 0, 0, [0,1.96*R,0],         # constant contact
-        0, 0, 0, 0, 0,                       # no twist
-        0.05*np.pi, 0.1*np.pi, 1.0, -0.1, 0,        # constant roll velocity (A term only)
-        0, 0, 0, 0, 0,                       # no shear
-        [0,0,1.0], [1.0,0,0],                # roll and shear axes
-        tmax, dt,
+        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
+        0, 0, 0, 0, 0, [0,0,1.96*R], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0, 0.8*R, 1.0, 0, -0.2, # shear
+        [1.0,0,0], [0,1.0,0], # roll and shear axes
+        tmax, dt, # time
         R_i, R_j
     )
 elif testID == 14:
-    # Complex twisting motion
-    #
-    # Verification criterion: the twisting torque must remain aligned with the current
-    # contact normal under rigid-body tilt motion (Sec. 4.14). A constant twist
-    # velocity is applied while ωb = [1,0,0] tilts the contact plane. If the twist
-    # axis is not updated with the contact normal the torque acquires a spurious
-    # off-normal component. Failure indicates a modelling error.
-    contact_params['k_t'] = 0.50e7
+    # Complex rolling motion
+    contact_params['k_r'] = 0.25e7
     motion = my_analytical_motion(
-        [0,0,0],[0,0,0],[1.0,0,0],           # tilt rigid-body rotation (ωb along x)
+        [0,0,0],[0,0,0],[1.0,1.0,1.0],           # tilt rigid-body rotation (ω_f along x)  with 0.2 around the y axis is quite nice
         [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
-        0, 0, 0, 0, 0, [0,0,1.96*R],         # constant contact
-        0.1*np.pi, 0.1*np.pi, 1.0, -0.1, 0,# constant twist velocity (A term only)
-        0, 0, 0, 0, 0,                       # no roll
+        0, 0, 0, 0, 0, [0,0,1.96*R],         # constant contact # [0,1.96*R,0],
+        0, 0, 0, 0, 0,                       # no twist
+        0, 0.1*np.pi, 1.0, 0, -0.2,          # complicated roll velocity
         0, 0, 0, 0, 0,                       # no shear
-        [1.0,0,0], [0,1.0,0],                # roll and shear axes (needed for orientation)
+        [1.0,0,0], [0,1.0,0],                # roll and shear axes # [0,0,1.0], [1.0,0,0],
         tmax, dt,
         R_i, R_j
     )
 elif testID == 15:
+    # Complex twisting motion
+    contact_params['k_t'] = 0.50e7
+    motion = my_analytical_motion(
+        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
+        [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
+        0, 0, 0, 0, 0, [1.96*R,0,0],         # constant contact #0, 0, 0, 0, 0, [0,0,1.96*R],
+        0, 0.1*np.pi, 1.0, -0.1, 0,         # complicated twist velocity # .1*np.pi
+        0, 0, 0, 0, 0,                       # no roll
+        0, 0, 0, 0, 0,                       # no shear
+        [0,0,1.0], [0,1.0,0],                # roll and shear axes (needed for orientation) # [1.0,0,0], [0,1.0,0],
+        tmax, dt,
+        R_i, R_j
+    )
+elif testID == 16:
     # Complex combined motion
     #
     # F_n = k_n * u_n = 1e7 * 0.05 = 5e5 N  →  Coulomb limit = mu * F_n = 2.5e5 N.
@@ -306,10 +304,12 @@ elif testID == 15:
     #   Twist: T_t_max = k_t * (B_t/w) = 2.5e6 * 0.01 = 2.5e4 N·m (torque) << limit
     # Phase offsets (0, pi/2, pi) keep the mode maxima from coinciding, ensuring the
     # combined response stays elastic at all times.
+    #
+    # Should go in and out of elastic / plastic regime as well as in and out of contact.
     contact_params['k_r'] = 0.25e7
     contact_params['k_t'] = 0.25e7
     motion = my_analytical_motion(
-        [0,0,0],[0,0,0],[0,0,0],             # no rigid-body motion
+        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
         [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
         0, 0, 0, 0, 0, [0,0,1.95*R],         # constant contact (u_n = 0.05)
         0, 0.010, 1.0, 0, 0,                 # twist: phi=0
@@ -319,7 +319,7 @@ elif testID == 15:
         tmax, dt,
         R_i, R_j
     )
-elif testID == 16:
+elif testID == 17:
     # Shear force rotation at large size ratios
     #
     # Verification criterion: for a large size ratio R_i/R_j = 8, standard integration
@@ -344,7 +344,7 @@ elif testID == 16:
         tmax, dt,
         R_i, R_j
     )
-elif testID == 17:
+elif testID == 18:
     # Oblique impact
     #
     # Verification criterion: during a combined normal approach and simultaneous shear
@@ -366,7 +366,7 @@ elif testID == 17:
         tmax, dt,
         R_i, R_j
     )
-elif testID == 18:
+elif testID == 19:
     # Particle rotating on top of another particle
     #
     # Verification criterion: a small particle (R_j=0.5) rolling over the surface of
@@ -393,7 +393,7 @@ elif testID == 18:
         tmax, dt,
         R_i, R_j
     )
-elif testID == 19:
+elif testID == 20:
     # Combination test: simultaneous normal and shear damping
     #
     # Verification criterion: when both normal and shear viscous dashpots are active
@@ -415,7 +415,7 @@ elif testID == 19:
         tmax, dt,
         R_i, R_j
     )
-elif testID == 20:
+elif testID == 21:
     # Initial shear followed by progressive rigid-body rotation
     #
     # Verification criterion: a small shear displacement accumulated under zero

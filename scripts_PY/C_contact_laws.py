@@ -282,6 +282,7 @@ def Tt_spring_dashpot_Coulomb(contact_params, motions, Fn):
     mu_t      = contact_params['mu_t']                          # (1)
     u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
     n_ij    = np.array(motions['n_ij'], dtype=float)        # (N,3)
+    omega_f = np.asarray(motions['omega_f'], dtype=float)   # (N,3)
     omega_t = np.asarray(motions['omega_t'], dtype=float)   # (N,3)
     dtheta_t = np.array(motions['dtheta_t'], dtype=float)   # (N,3) - over the last time step
     dt      = np.array(motions['dt'], dtype=float)          # (1)
@@ -312,6 +313,20 @@ def Tt_spring_dashpot_Coulomb(contact_params, motions, Fn):
             # Retrieve elastic component previous twisting torque
             Tt_tmp = Tt_old
             
+            # Small-angle rotation update inside the loop
+            omega = omega_f[i]*dt[i]
+            theta = np.linalg.norm(omega)
+            if theta > 1e-12:
+                axis = omega / theta
+                # Rodrigues' rotation formula for rotation matrix
+                K = np.array([
+                    [0, -axis[2], axis[1]],
+                    [axis[2], 0, -axis[0]],
+                    [-axis[1], axis[0], 0]
+                ])
+                R = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
+                Tt_tmp = R @ Tt_tmp
+
             # Integrate increment
             Tt_tmp -= k_t * dtheta_t[i]
             
@@ -350,6 +365,7 @@ def Tb_spring_dashpot_Coulomb(contact_params, motions, Fn):
     mu_b      = contact_params['mu_b']                        # (1)
     u_n     = np.array(motions['u_n'], dtype=float)         # (N,1)
     n_ij    = np.array(motions['n_ij'], dtype=float)        # (N,3)
+    omega_f = np.asarray(motions['omega_f'], dtype=float)   # (N,3)
     omega_b = np.asarray(motions['omega_b'], dtype=float)   # (N,3)
     dtheta_b = np.array(motions['dtheta_b'], dtype=float)   # (N,3) - over the last time step
     dt      = np.array(motions['dt'], dtype=float)          # (1)
@@ -380,6 +396,20 @@ def Tb_spring_dashpot_Coulomb(contact_params, motions, Fn):
             # Retrieve elastic component previous bending torque
             Tb_tmp = Tb_old
             
+            # Small-angle rotation update inside the loop
+            omega = omega_f[i]*dt[i]
+            theta = np.linalg.norm(omega)
+            if theta > 1e-12:
+                axis = omega / theta
+                # Rodrigues' rotation formula for rotation matrix
+                K = np.array([
+                    [0, -axis[2], axis[1]],
+                    [axis[2], 0, -axis[0]],
+                    [-axis[1], axis[0], 0]
+                ])
+                R = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
+                Tb_tmp = R @ Tb_tmp
+
             # Integrate increment
             Tb_tmp -= k_b * dtheta_b[i]
             

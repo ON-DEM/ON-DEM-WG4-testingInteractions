@@ -340,7 +340,7 @@ def Tt_spring_dashpot_Coulomb(contact_params, motions, Fn):
             Tt_old = Tt_tmp.copy() # copy to avoid aliasing
 
             # Add viscous component
-            Tt_tmp -= eta_t * omega_t[i] * dt[i]
+            Tt_tmp -= eta_t * omega_t[i]
             # Apply Coulomb limit, again (this is a modelling choice!)
             Tt_mag = np.linalg.norm(Tt_tmp)
             if Tt_mag > Tt_max:
@@ -423,7 +423,7 @@ def Tb_spring_dashpot_Coulomb(contact_params, motions, Fn):
             Tb_old = Tb_tmp.copy() # copy to avoid aliasing
 
             # Add viscous component
-            Tb_tmp -= eta_b * omega_b[i] * dt[i]
+            Tb_tmp -= eta_b * omega_b[i]
             # Apply Coulomb limit, again (this is a modelling choice!)
             Tb_mag = np.linalg.norm(Tb_tmp)
             if Tb_mag > Tb_max:

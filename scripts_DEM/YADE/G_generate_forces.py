@@ -201,15 +201,15 @@ O.engines = [
 	PyRunner(command='saveKinematics()',    initRun=True, iterPeriod=1),
 	PyRunner(command='imposeState()',       initRun=True, iterPeriod=1),
 	InteractionLoop(
-		[Ig2_Sphere_Sphere_ScGeom6D(avoidGranularRatcheting=True,exactRotations=True)],
+		[Ig2_Sphere_Sphere_ScGeom6D(avoidGranularRatcheting=True,exactRotations=False)],
 		[Ip2_MaxwellMat_MaxwellMat_MaxwellPhys(
-			kn=MatchMaker(algo='val', val=kn), etan=MatchMaker(algo='val', val=etan),
-			ks=MatchMaker(algo='val', val=ks), etas=MatchMaker(algo='val', val=etas),
-			kr=MatchMaker(algo='val', val=kr), etar=MatchMaker(algo='val', val=etar),
-			kt=MatchMaker(algo='val', val=kt), etat=MatchMaker(algo='val', val=etat),
-			kb=MatchMaker(algo='val', val=kb), etab=MatchMaker(algo='val', val=etab)
+			kn=MatchMaker(algo='val', val=kn), etan=MatchMaker(algo='val', val=etan), 
+			ks=MatchMaker(algo='val', val=ks), etas=MatchMaker(algo='val', val=etas), frictAngle=MatchMaker(algo='val', val=atan(mus)),
+			kr=MatchMaker(algo='val', val=kr), etar=MatchMaker(algo='val', val=etar), mur=MatchMaker(algo='val', val=mur),
+			kt=MatchMaker(algo='val', val=kt), etat=MatchMaker(algo='val', val=etat), mut=MatchMaker(algo='val', val=mut),
+			kb=MatchMaker(algo='val', val=kb), etab=MatchMaker(algo='val', val=etab), mub=MatchMaker(algo='val', val=mub)
 		)],
-		[Law2_ScGeom_MaxwellPhys_general(limitViscousPart=True,hasBending=True)]
+		[Law2_ScGeom_MaxwellPhys_general(limitViscousPart=True)]
 	),
 	PyRunner(command='saveForcesTorques()', initRun=True, iterPeriod=1),
 	NewtonIntegrator(gravity=(0, 0, 0), damping=0)

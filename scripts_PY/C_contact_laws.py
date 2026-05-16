@@ -2,6 +2,8 @@
 
 import numpy as np
 
+MIN_ANGLE_MAG = 1e-14
+
 #
 #   NORMAL FORCE LAWS
 #
@@ -77,7 +79,7 @@ def Fs_spring_dashpot_Coulomb(contact_params, motions, Fn):
             # Small-angle rotation update inside the loop
             omega = omega_f[i]*dt[i]
             theta = np.linalg.norm(omega)
-            if theta > 1e-12: # Bad magic number
+            if theta > MIN_ANGLE_MAG: # Bad magic number
                 axis = omega / theta
                 # Rodrigues’ rotation formula for rotation matrix
                 K = np.array([
@@ -151,7 +153,7 @@ def Fs_spring_dashpot_Coulomb_ext(contact_params, motions, Fn):
             # Small-angle rotation update inside the loop
             omega = omega_f[i]*dt[i]
             theta = np.linalg.norm(omega)
-            if theta > 1e-12:
+            if theta > MIN_ANGLE_MAG:
                 axis = omega / theta
                 # Rodrigues’ rotation formula for rotation matrix
                 K = np.array([
@@ -233,7 +235,7 @@ def Tr_spring_dashpot_Coulomb(contact_params, motions, Fn):
             # Small-angle rotation update inside the loop
             omega = omega_f[i]*dt[i]
             theta = np.linalg.norm(omega)
-            if theta > 1e-12:
+            if theta > MIN_ANGLE_MAG:
                 axis = omega / theta
                 # Rodrigues' rotation formula for rotation matrix
                 K = np.array([
@@ -316,7 +318,7 @@ def Tt_spring_dashpot_Coulomb(contact_params, motions, Fn):
             # Small-angle rotation update inside the loop
             omega = omega_f[i]*dt[i]
             theta = np.linalg.norm(omega)
-            if theta > 1e-12:
+            if theta > MIN_ANGLE_MAG:
                 axis = omega / theta
                 # Rodrigues' rotation formula for rotation matrix
                 K = np.array([
@@ -399,7 +401,7 @@ def Tb_spring_dashpot_Coulomb(contact_params, motions, Fn):
             # Small-angle rotation update inside the loop
             omega = omega_f[i]*dt[i]
             theta = np.linalg.norm(omega)
-            if theta > 1e-12:
+            if theta > MIN_ANGLE_MAG:
                 axis = omega / theta
                 # Rodrigues' rotation formula for rotation matrix
                 K = np.array([
@@ -566,7 +568,7 @@ def Fs_fail_test_2(contact_params, motions, Fn):
             # Small-angle rotation update inside the loop
             omega   = omega_f[i] * dt[i]
             theta   = np.linalg.norm(omega)
-            if theta > 1e-12:
+            if theta > MIN_ANGLE_MAG:
                 axis = omega / theta
 
                 # Rodrigues' rotation formula for rotation matrix
@@ -723,7 +725,7 @@ def Fs_fail_test_5(contact_params, motions, Fn):
             # Small-angle rotation update inside the loop
             omega = omega_f[i]*dt[i]
             theta = np.linalg.norm(omega)
-            if theta > 1e-12: # Bad magic number
+            if theta > MIN_ANGLE_MAG: # Bad magic number
                 axis = omega / theta
                 # Rodrigues’ rotation formula for rotation matrix
                 K = np.array([
@@ -856,7 +858,7 @@ def Fs_fail_test_9(contact_params, motions, Fn):
             # Small-angle rotation update inside the loop
             omega   = omega_f[i] * dt[i]
             theta   = np.linalg.norm(omega)
-            if theta > 1e-12:
+            if theta > MIN_ANGLE_MAG:
                 axis = omega / theta
                 # Rodrigues' rotation formula for rotation matrix
                 K = np.array([

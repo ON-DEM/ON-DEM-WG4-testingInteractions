@@ -238,7 +238,6 @@ elif testID == 12:
     # Distinction between rolling and bending
     R_i = 2.0    # large particle
     R_j = 0.2    # small particle  (size ratio 10:1)
-    R = (R_i + R_j) / 2.0    # = 1.25
     contact_params['k_r'] = 0.25e7
     contact_params['R_i'] = R_i
     contact_params['R_j'] = R_j
@@ -261,7 +260,7 @@ elif testID == 13:
         0, 0, 0, 0, 0, [0,0,1.96*R], # normal loading, initial branch
         0, 0, 0, 0, 0, # twist
         0, 0, 0, 0, 0, # roll
-        0, 0.8*R, 1.0, 0, -0.2, # shear
+        0, 0.8*R, 1.0, 0, -0.1, # shear
         [1.0,0,0], [0,1.0,0], # roll and shear axes
         tmax, dt, # time
         R_i, R_j
@@ -270,11 +269,11 @@ elif testID == 14:
     # Complex rolling motion
     contact_params['k_r'] = 0.25e7
     motion = my_analytical_motion(
-        [0,0,0],[0,0,0],[1.0,1.0,1.0],           # tilt rigid-body rotation (ω_f along x)  with 0.2 around the y axis is quite nice
+        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0],       # tilt rigid-body rotation (ω_f along x)  with 0.2 around the y axis is quite nice
         [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
         0, 0, 0, 0, 0, [0,0,1.96*R],         # constant contact # [0,1.96*R,0],
         0, 0, 0, 0, 0,                       # no twist
-        0, 0.1*np.pi, 1.0, 0, -0.2,          # complicated roll velocity
+        0, np.pi, 1.0, 0, -0.1,          # complicated roll velocity
         0, 0, 0, 0, 0,                       # no shear
         [1.0,0,0], [0,1.0,0],                # roll and shear axes # [0,0,1.0], [1.0,0,0],
         tmax, dt,
@@ -287,7 +286,7 @@ elif testID == 15:
         [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
         [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
         0, 0, 0, 0, 0, [1.96*R,0,0],         # constant contact #0, 0, 0, 0, 0, [0,0,1.96*R],
-        0, 0.1*np.pi, 1.0, -0.1, 0,         # complicated twist velocity # .1*np.pi
+        0, np.pi, 1.0, 0, -0.1,          # complicated twist velocity
         0, 0, 0, 0, 0,                       # no roll
         0, 0, 0, 0, 0,                       # no shear
         [0,0,1.0], [0,1.0,0],                # roll and shear axes (needed for orientation) # [1.0,0,0], [0,1.0,0],
@@ -311,10 +310,10 @@ elif testID == 16:
     motion = my_analytical_motion(
         [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
         [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
-        0, 0, 0, 0, 0, [0,0,1.95*R],         # constant contact (u_n = 0.05)
-        0, 0.010, 1.0, 0, 0,                 # twist: phi=0
-        0, 0.010, 1.0, np.pi/2, 0,           # roll: phi=pi/2, 90 deg out of phase
-        0, 0.010*R, 1.0, np.pi, 0,           # shear: phi=pi, 180 deg out of phase
+        0, 0, 0, 0, 0, [0,0,1.96*R],         # constant contact (u_n = 0.05)
+        0, 1.0, 1.0, 0, 0,                 # twist: phi=0
+        0, 1.0, 1.0, np.pi/2, 0,           # roll: phi=pi/2, 90 deg out of phase
+        0, 0.5*R, 1.0, np.pi, 0,           # shear: phi=pi, 180 deg out of phase
         [1.0,0,0], [0,1.0,0],                # roll and shear axes
         tmax, dt,
         R_i, R_j
@@ -427,7 +426,7 @@ elif testID == 21:
     # test 4, but at a much larger rotation rate (2.0 vs 1.0 rad/s) to amplify the
     # accumulated error. Failure indicates a modelling error.
     motion = my_analytical_motion(
-        [0,0,0],[0,0,0],[0,1.0,2.0],           # large spin rigid-body rotation (ωb along z)
+        [0,0,0],[0,0,0],[0,1.0,2.0],         # large spin rigid-body rotation (ωb along z)
         [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
         0, 0, 0, 0, 0, [0,0,1.95*R],         # constant contact
         0, 0, 0, 0, 0,                       # no twist

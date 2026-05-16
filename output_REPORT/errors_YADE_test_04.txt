@@ -7,8 +7,8 @@ Position $\vec{x}$ & $1.92\times10^{-2}$ & $1.73\times10^{-2}$ \\
 Velocity $\vec{v}$ & $1.06\times10^{4}$ & $1.06\times10^{4}$ \\
 Orientation $\vec{q}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
 Ang. velocity $\vec{\omega}$ & $1.01\times10^{0}$ & $1.01\times10^{0}$ \\
-Force $\vec{F}$ & $5.32\times10^{-4}$ & $5.32\times10^{-4}$ \\
-Torque $\vec{T}$ & $5.28\times10^{-3}$ & $5.28\times10^{-3}$ \\
+Force $\vec{F}$ & $7.92\times10^{-4}$ & $7.92\times10^{-4}$ \\
+Torque $\vec{T}$ & $7.04\times10^{-3}$ & $7.04\times10^{-3}$ \\
 \hline
 Force imbalance & \multicolumn{2}{c}{$<1.0\times10^{-14}$} \\
 Torque imbalance & \multicolumn{2}{c}{$<1.0\times10^{-14}$} \\

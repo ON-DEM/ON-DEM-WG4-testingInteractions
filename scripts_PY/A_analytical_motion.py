@@ -348,7 +348,7 @@ def my_integrate_rotation(initial_quat, theta_vecs):
         theta_vec = theta_vecs[i + 1]
         delta_rot = Rotation.from_rotvec(theta_vec)
         # Update orientation by quaternion multiplication
-        orientation = orientation * delta_rot
+        orientation = delta_rot * orientation  # World frame rotation!
         # Store new quaternion
         quats[i + 1] = (orientation.as_quat()).copy()
     

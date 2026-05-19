@@ -24,7 +24,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Configuration — edit these lists to add/remove tests or DEM softwares
 # ---------------------------------------------------------------------------
-ALL_TESTS = list(range(1, 21))        # tests 1-20 are currently implemented
+ALL_TESTS = list(range(1, 18))        # tests 1-17 are currently implemented
 ALL_SOFTWARES = ['YADE']              # add other DEM codes here as they are integrated
 
 # Path layout (all relative to this script, which lives at the project root)

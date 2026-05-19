@@ -37,6 +37,49 @@ def Fn_spring_dashpot(contact_params, motions):
 
     return Fn
 
+def Fn_spring_dashpot_maxwell(contact_params, motions):
+    """
+    Normal mode: parallel spring k_n plus one Maxwell arm (armKn[0] in series
+    with armEtan[0]), both repulsive-only.
+
+    The arm history is NOT reset on loss of contact. Instead it decays freely
+    with v_approach = 0 (pure exponential relaxation) so that a particle
+    re-entering contact before full decay sees the correct residual arm force.
+    The normal force applied to the bodies is still zero while out of contact.
+    """
+    k_n     = contact_params['k_n']
+    k_arm   = contact_params.get('armKn',   [0.0])[0]
+    eta_arm = contact_params.get('armEtan', [0.0])[0]
+    u_n     = motions['u_n'].reshape(-1)
+    v_ijn   = motions['v_ijn']
+    n_ij    = motions['n_ij']
+    dt      = np.array(motions['dt'], dtype=float)
+
+    has_arm = (k_arm > 0 and eta_arm > 0)
+    tau     = eta_arm / k_arm if has_arm else 1.0
+
+    active = (u_n > 0)
+    v_n    = -np.einsum('ij,ij->i', v_ijn, n_ij)
+
+    N         = len(u_n)
+    Fn_mag    = np.zeros(N)
+    arm_force = 0.0
+
+    for i in range(N):
+        # Always update the arm, even out of contact: v_approach = 0 gives pure decay.
+        # This preserves viscoelastic memory for re-contact before full relaxation.
+        if has_arm:
+            v_approach = v_n[i] if active[i] else 0.0
+            decay      = np.exp(-dt[i] / tau)
+            arm_force  = arm_force * decay + eta_arm * v_approach * (1.0 - decay)
+
+        if active[i]:
+            Fn_mag[i] = max(0.0, k_n * u_n[i] + arm_force)
+        # else: Fn_mag[i] remains 0 — no force applied across a gap
+
+    Fn = -Fn_mag[:, None] * n_ij
+    return Fn
+
 #
 #   SHEAR FORCE LAWS
 #
@@ -488,18 +531,6 @@ def my_compute_effective_params(contact_params):
 #   Faulty or alternative versions of the above contact models for demonstrative purposes.
 #
 
-""" 
-NOTES:
-
-Fn_fail_test_8: Continuity of viscous force - not sure yet how to fail, maybe Maxwell element.
-
-Test 11: shape dependence - not sure yet how to fail.
-
-Test 12: call bending function instead of roll.
-
- """
-
-
 def Fs_fail_test_1(contact_params, motions, Fn):
 
     """
@@ -763,69 +794,143 @@ def Fs_fail_test_5(contact_params, motions, Fn):
 def Fn_fail_test_6(contact_params, motions):
     """
     Failure mode for test 6:
-    The total normal force is NOT clipped to zero — tensile viscous forces are allowed.
-    During rapid separation the dashpot can pull the particles back together, which is
-    unphysical for a granular contact without cohesion.
+    The total normal force is NOT clipped to repulsive — tensile Maxwell arm forces
+    are allowed. When the arm spring force is negative (tensile, after a rapid
+    separation) and its magnitude exceeds the base spring contribution, the contact
+    pulls the particles back together, which is unphysical for a granular contact
+    without cohesion.
+    The arm still decays freely during out-of-contact periods (history preserved),
+    so the only difference from the correct model is the missing max(0, ...) clip.
     """
-    k_n     = contact_params['k_n']     # (1)
-    eta_n   = contact_params['eta_n']   # (1)
-    u_n     = motions['u_n'].reshape(-1)    # (N,1)
-    v_ijn   = motions['v_ijn']              # (N,3)
-    n_ij    = motions['n_ij']               # (N,3)
+    k_n     = contact_params['k_n']
+    k_arm   = contact_params.get('armKn',   [0.0])[0]
+    eta_arm = contact_params.get('armEtan', [0.0])[0]
+    u_n     = motions['u_n'].reshape(-1)
+    v_ijn   = motions['v_ijn']
+    n_ij    = motions['n_ij']
+    dt      = np.array(motions['dt'], dtype=float)
 
-    active  = (u_n > 0)
+    has_arm = (k_arm > 0 and eta_arm > 0)
+    tau     = eta_arm / k_arm if has_arm else 1.0
 
-    # Normal velocity magnitude (separation +, approach -), swapped so that approach is resistive
-    v_n     = - np.einsum('ij,ij->i', v_ijn, n_ij)
-    Fn_mag  = np.zeros_like(u_n)
-    Fn_mag[active] = k_n * u_n[active] + eta_n * v_n[active]
+    active    = (u_n > 0)
+    v_n       = -np.einsum('ij,ij->i', v_ijn, n_ij)
+    N         = len(u_n)
+    Fn_mag    = np.zeros(N)
+    arm_force = 0.0
 
-    # Fail: do NOT apply np.maximum(Fn_mag, 0) — tensile total force is allowed
-    Fn = - Fn_mag[:, None] * n_ij
+    for i in range(N):
+        # Arm decays freely out of contact (v_approach = 0), same as correct model
+        if has_arm:
+            v_approach = v_n[i] if active[i] else 0.0
+            decay      = np.exp(-dt[i] / tau)
+            arm_force  = arm_force * decay + eta_arm * v_approach * (1.0 - decay)
 
+        if active[i]:
+            # Fail: do NOT clip to repulsive — tensile total force is allowed
+            Fn_mag[i] = k_n * u_n[i] + arm_force
+
+    Fn = -Fn_mag[:, None] * n_ij
     return Fn
 
 
 
-
-def Fn_fail_test_7(contact_params, motions): # NOT EXACTLY WHAT I INTENDED
-
+def Fn_fail_test_7(contact_params, motions):
     """
     Failure mode for test 7:
-    The viscous dashpot is completely disabled once the contact enters the separation phase
-    (v_n < 0, i.e. particles moving apart). Only the elastic spring acts during separation,
-    as if the dashpot is switched off the moment the force would first touch zero.
-    This is asymmetric: energy is dissipated during approach but not during rebound.
+    The Maxwell arm is always updated (it decays freely), but the velocity fed
+    into it is capped at zero during separation (v_n < 0). This is asymmetric:
+    on approach the arm is driven by the full approach velocity, on separation
+    it only decays — as if the dashpot within the arm is a one-way valve that
+    closes the moment the particles start moving apart. Energy is dissipated
+    during approach but the rebound is stiffer than it should be.
     """
-    k_n     = contact_params['k_n']     # (1)
-    eta_n   = contact_params['eta_n']   # (1)
-    u_n     = motions['u_n'].reshape(-1)    # (N,1)
-    v_ijn   = motions['v_ijn']              # (N,3)
-    n_ij    = motions['n_ij']               # (N,3)
+    k_n     = contact_params['k_n']
+    k_arm   = contact_params.get('armKn',   [0.0])[0]
+    eta_arm = contact_params.get('armEtan', [0.0])[0]
+    u_n     = motions['u_n'].reshape(-1)
+    v_ijn   = motions['v_ijn']
+    n_ij    = motions['n_ij']
+    dt      = np.array(motions['dt'], dtype=float)
 
-    active  = (u_n > 0)
+    has_arm = (k_arm > 0 and eta_arm > 0)
+    tau     = eta_arm / k_arm if has_arm else 1.0
 
-    # Normal velocity magnitude (separation +, approach -), swapped so that approach is resistive
-    v_n     = - np.einsum('ij,ij->i', v_ijn, n_ij)
+    active    = (u_n > 0)
+    v_n       = -np.einsum('ij,ij->i', v_ijn, n_ij)
+    N         = len(u_n)
+    Fn_mag    = np.zeros(N)
+    arm_force = 0.0
 
-    # Fail: only add viscous damping during approach (v_n > 0), disabled during separation
-    approaching = (v_n > 0)
-    Fn_mag  = np.zeros_like(u_n)
-    Fn_mag[active]              = k_n * u_n[active]
-    Fn_mag[active & approaching] += eta_n * v_n[active & approaching]
-    Fn_mag  = np.maximum(Fn_mag, 0) # No adhesion in this model
+    for i in range(N):
+        # Arm always updates, but velocity is capped at zero during separation.
+        # Out of contact counts as separation (v_approach = 0), same as correct model.
+        if has_arm:
+            v_approach = max(0.0, v_n[i])  # Fail: one-way valve — no negative drive
+            decay      = np.exp(-dt[i] / tau)
+            arm_force  = arm_force * decay + eta_arm * v_approach * (1.0 - decay)
 
-    Fn = - Fn_mag[:, None] * n_ij
+        if active[i]:
+            Fn_mag[i] = max(0.0, k_n * u_n[i] + arm_force)
 
+    Fn = -Fn_mag[:, None] * n_ij
     return Fn
 
 
-# Fs_fail_test_8
+# Fn_fail_test_8, just use dashpot
 
 
-def Fs_fail_test_9(contact_params, motions, Fn):
+def Fn_fail_test_9(contact_params, motions):
     """
-    Failure mode for test 9:
+    Loss of contact instantly erases the Maxwell arm history, instead of allowing it to decay freely.
+
+    Normal mode: parallel spring k_n plus one Maxwell arm (armKn[0] in series
+    with armEtan[0]), both repulsive-only.
+
+    The arm history is NOT reset on loss of contact. Instead it decays freely
+    with v_approach = 0 (pure exponential relaxation) so that a particle
+    re-entering contact before full decay sees the correct residual arm force.
+    The normal force applied to the bodies is still zero while out of contact.
+    """
+    k_n     = contact_params['k_n']
+    k_arm   = contact_params.get('armKn',   [0.0])[0]
+    eta_arm = contact_params.get('armEtan', [0.0])[0]
+    u_n     = motions['u_n'].reshape(-1)
+    v_ijn   = motions['v_ijn']
+    n_ij    = motions['n_ij']
+    dt      = np.array(motions['dt'], dtype=float)
+
+    has_arm = (k_arm > 0 and eta_arm > 0)
+    tau     = eta_arm / k_arm if has_arm else 1.0
+
+    active = (u_n > 0)
+    v_n    = -np.einsum('ij,ij->i', v_ijn, n_ij)
+
+    N         = len(u_n)
+    Fn_mag    = np.zeros(N)
+    arm_force = 0.0
+
+    for i in range(N):
+        # Always update the arm, even out of contact: v_approach = 0 gives pure decay.
+        # This preserves viscoelastic memory for re-contact before full relaxation.
+        if has_arm:
+            v_approach = v_n[i] if active[i] else 0.0
+            decay      = np.exp(-dt[i] / tau)
+            arm_force  = arm_force * decay + eta_arm * v_approach * (1.0 - decay)
+
+        if active[i]:
+            Fn_mag[i] = max(0.0, k_n * u_n[i] + arm_force)
+        else:
+            arm_force = 0.0  # Fail: loss of contact instantly erases arm history — no memory for re-contact
+        # else: Fn_mag[i] remains 0 — no force applied across a gap
+
+    Fn = -Fn_mag[:, None] * n_ij
+    return Fn
+
+
+def Fs_fail_test_10(contact_params, motions, Fn):
+    """
+    Failure mode for test 10:
     The viscous component of the shear force is incorrectly included in the accumulated
     elastic history (Fs_old). The rate-dependent dashpot force contaminates the elastic
     state carried to the next time step, causing the stored spring force to be
@@ -894,9 +999,9 @@ def Fs_fail_test_9(contact_params, motions, Fn):
 
 
 
-def Fs_fail_test_10(contact_params, motions, Fn):
+def Fs_fail_test_11(contact_params, motions, Fn):
     """
-    Failure mode for test 10:
+    Failure mode for test 11:
     Delegates to Fs_spring_dashpot_Coulomb_ext, in which the viscous dashpot contribution
     is excluded from the Coulomb limit check. The dashpot force is added on top of the
     already-limited elastic force with no further cap, allowing the total shear force to

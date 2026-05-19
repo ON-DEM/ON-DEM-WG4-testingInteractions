@@ -31,9 +31,14 @@ selected = {k: v for k, v in imposed_data.items() if k not in _exclude}
 # --- Read contact parameters from the JSON (written by F_generate_analytical.py) ---
 # Fall back to sensible defaults if an older JSON without contact_params is loaded.
 _cp_defaults = {'k_n': 1.0e7, 'k_s': 0.5e7, 'k_r': 0.0, 'k_t': 0.0, 'k_b': 0.0,
-                			  'mu_s': 0.5, 'mu_r': 0.5, 'mu_t': 0.5, 'mu_b': 0.5,
+                'mu_s': 0.5, 'mu_r': 0.5, 'mu_t': 0.5, 'mu_b': 0.5,
                 'eta_n': 0.0, 'eta_s': 0.0, 'eta_r': 0.0, 'eta_t': 0.0, 'eta_b': 0.0,
-                'R_i': 1.0, 'R_j': 1.0}
+                'R_i': 1.0, 'R_j': 1.0,
+                'armKn': [],   'armEtan': [],
+                'armKs': [],   'armEtas': [],
+                'armKr': [],   'armEtar': [],
+                'armKt': [],   'armEtat': [],
+                'armKb': [],   'armEtab': []}
 _cp = {**_cp_defaults, **(imposed_data.get('contact_params', {}))}
  
 kn  = float(_cp['k_n'])   # normal stiffness [N/m]
@@ -52,6 +57,17 @@ etat = float(_cp['eta_t']) # twisting viscosity [kg m^2/s]
 etab = float(_cp['eta_b']) # bending viscosity [kg m^2/s]
 R_i = float(_cp['R_i'])   # radius of particle i [m]
 R_j = float(_cp['R_j'])   # radius of particle j [m]
+# Maxwell arm parameters — list type preserved; empty list disables that mode's arms.
+armKn   = list(_cp['armKn'])
+armEtan = list(_cp['armEtan'])
+armKs   = list(_cp['armKs'])
+armEtas = list(_cp['armEtas'])
+armKr   = list(_cp['armKr'])
+armEtar = list(_cp['armEtar'])
+armKt   = list(_cp['armKt'])
+armEtat = list(_cp['armEtat'])
+armKb   = list(_cp['armKb'])
+armEtab = list(_cp['armEtab'])
 
 # --- Basic validation / conversion helpers ---
 def as_np(name):
@@ -78,13 +94,18 @@ T_i       = as_np('T_i')              # analytical torques if present (N,3)
 T_j       = as_np('T_j')              # analytical torques if present (N,3)
 
 # --- Initialize simulation scene ---
-# Add a dummy material
+# Add Maxwell material
 O.materials.append(
-      MaxwellMat(young=kn, poisson=(ks/kn), etan=etan, 
-                frictionAngle=atan(mus), mur=mur, mut=mut, mub=mub,
-                ks=ks, kr=kr, kt=kt, kb=kb,
-                etas=etas, etar=etar, etat=etat, etab=etab)
-    )
+    MaxwellMat(young=kn, poisson=(ks/kn), etan=etan,
+               frictionAngle=atan(mus), mur=mur, mut=mut, mub=mub,
+               ks=ks, kr=kr, kt=kt, kb=kb,
+               etas=etas, etar=etar, etat=etat, etab=etab,
+               armKn=armKn,   armEtan=armEtan,
+               armKs=armKs,   armEtas=armEtas,
+               armKr=armKr,   armEtar=armEtar,
+               armKt=armKt,   armEtat=armEtat,
+               armKb=armKb,   armEtab=armEtab)
+)
 
 sphere1 = sphere(center=(x_i[0,0], x_i[0,1], x_i[0,2]), radius=R_i, fixed=False)
 sphere2 = sphere(center=(x_j[0,0], x_j[0,1], x_j[0,2]), radius=R_j, fixed=False)
@@ -197,7 +218,7 @@ def saveForcesTorques():
 O.dt = dt[0]
 O.engines = [
 	ForceResetter(),
-	InsertionSortCollider([Bo1_Sphere_Aabb()]),
+	InsertionSortCollider([Bo1_Sphere_Aabb()],verletDist=0.5*(R_i+R_j)),
 	PyRunner(command='saveKinematics()',    initRun=True, iterPeriod=1),
 	PyRunner(command='imposeState()',       initRun=True, iterPeriod=1),
 	InteractionLoop(
@@ -209,7 +230,7 @@ O.engines = [
 			kt=MatchMaker(algo='val', val=kt), etat=MatchMaker(algo='val', val=etat), mut=MatchMaker(algo='val', val=mut),
 			kb=MatchMaker(algo='val', val=kb), etab=MatchMaker(algo='val', val=etab), mub=MatchMaker(algo='val', val=mub)
 		)],
-		[Law2_ScGeom_MaxwellPhys_general(limitViscousPart=True)]
+		[Law2_ScGeom_MaxwellPhys_general(limitViscousPart=True,preserveHistory=True)]
 	),
 	PyRunner(command='saveForcesTorques()', initRun=True, iterPeriod=1),
 	NewtonIntegrator(gravity=(0, 0, 0), damping=0)

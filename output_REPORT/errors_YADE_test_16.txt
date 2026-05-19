@@ -3,14 +3,14 @@
 \hline
 Quantity & MAPE$_i$ (\%) & MAPE$_j$ (\%) \\
 \hline
-Position $\vec{x}$ & $5.31\times10^{-4}$ & $6.10\times10^{-4}$ \\
-Velocity $\vec{v}$ & $1.95\times10^{0}$ & $1.59\times10^{0}$ \\
+Position $\vec{x}$ & $5.25\times10^{-4}$ & $6.10\times10^{-4}$ \\
+Velocity $\vec{v}$ & $1.95\times10^{0}$ & $1.40\times10^{0}$ \\
 Orientation $\vec{q}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
-Ang. velocity $\vec{\omega}$ & $3.23\times10^{0}$ & $6.83\times10^{0}$ \\
-Force $\vec{F}$ & $1.14\times10^{-2}$ & $1.14\times10^{-2}$ \\
-Torque $\vec{T}$ & $5.89\times10^{-2}$ & $1.05\times10^{-1}$ \\
+Ang. velocity $\vec{\omega}$ & $3.18\times10^{0}$ & $3.36\times10^{0}$ \\
+Force $\vec{F}$ & $1.18\times10^{-1}$ & $1.18\times10^{-1}$ \\
+Torque $\vec{T}$ & $5.73\times10^{-1}$ & $5.73\times10^{-1}$ \\
 \hline
 Force imbalance & \multicolumn{2}{c}{$<1.0\times10^{-14}$} \\
-Torque imbalance & \multicolumn{2}{c}{$8.23\times10^{1}$} \\
+Torque imbalance & \multicolumn{2}{c}{$1.00\times10^{2}$} \\
 \hline
 \end{tabular}

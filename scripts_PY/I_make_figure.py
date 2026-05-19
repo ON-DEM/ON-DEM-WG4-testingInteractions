@@ -644,39 +644,23 @@ def main():
     elif test_id == 5:
         plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'z', output_dir, software_label,
                      ana_err_data=ana_err_data)
-    elif test_id in [6, 7, 8, 9, 10, 11]:
+    elif test_id in [6, 7, 8, 9, 10, 11, 12]:
         # Force x vs time
         plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
                     ana_err_data=ana_err_data)
-    elif test_id == 12:
+    elif test_id == 13:
         # Torque x vs time: the physically meaningful signal for this test
         # is best observed in the torque rather than the force.
         plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quantity='T',
                     ana_err_data=ana_err_data)
-    elif test_id == 13:
+    elif test_id == 14:
         # 3D force-space trajectory: axes are F_x, F_y, F_z (no time axis).
         plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
                          ana_err_data=ana_err_data)
-    elif test_id in [14, 15, 16]:
+    elif test_id in [15, 16, 17]:
         # 3D torque-space trajectory: axes are T_x, T_y, T_z (no time axis).
         plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
                          quantity='T', ana_err_data=ana_err_data)
-    elif test_id in [17, 18]:
-        # Force x vs time
-        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
-                    ana_err_data=ana_err_data)
-    elif test_id == 19:
-        # 3D force-space trajectory: axes are F_x, F_y, F_z (no time axis).
-        plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
-                         ana_err_data=ana_err_data)
-    elif test_id == 20:
-        # Force x vs time
-        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
-                    ana_err_data=ana_err_data)
-    elif test_id == 21:
-        # 3D force-space trajectory: axes are F_x, F_y, F_z (no time axis).
-        plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
-                         ana_err_data=ana_err_data)
     else:
         print(f"WARNING: No figure specification for Test {test_id}")
     

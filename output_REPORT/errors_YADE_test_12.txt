@@ -3,8 +3,8 @@
 \hline
 Quantity & MAPE$_i$ (\%) & MAPE$_j$ (\%) \\
 \hline
-Position $\vec{x}$ & $9.60\times10^{-3}$ & $7.68\times10^{-2}$ \\
-Velocity $\vec{v}$ & $3.00\times10^{2}$ & $2.35\times10^{3}$ \\
+Position $\vec{x}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
+Velocity $\vec{v}$ & $<1.0\times10^{-14}$ & $8.88\times10^{-5}$ \\
 Orientation $\vec{q}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
 Ang. velocity $\vec{\omega}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
 Force $\vec{F}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\

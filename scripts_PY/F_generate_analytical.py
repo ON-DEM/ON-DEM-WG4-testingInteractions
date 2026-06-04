@@ -244,17 +244,20 @@ elif testID == 11:
     contact_params['eta_s'] = 1.0e7
 elif testID == 12:
     # Dependence of force on particle size
-    # kn = E * R, so E = k_n if we have R = 1. So if we halve R, we must double kn.
-    # Sensible mixing then gives 2 * k_n * 2 * k_n / (k_n + 2*k_n) = 4/3 * k_n
-    contact_params['R_j'] = 0.5*R_j
-    R_j = contact_params['R_j']
-    scale = (2*R/contact_params['R_i']*R/contact_params['R_j'])/(R/contact_params['R_i']+R/contact_params['R_j'])  # = 4/3 for R_i=1, R_j=0.5
-    contact_params['k_n'] = scale*contact_params['k_n']   # For YADE, if we set E = k_n and it's automatically scaled.
-    contact_params['k_s'] = scale*contact_params['k_s']   # Original ratio preserved
+    # kn = E * R so kn = L*kn, and to keep overlap (strain) similar we have u/R constant, so u -> L*u
+    # Fn = L^2*kn is expected for similarity or proper size scaling.
+    scale = 0.5
+    R_i = scale*R_i
+    R_j = scale*R_j
+    R = (R_i + R_j)/2.0 # Recompute
+    contact_params['R_i'] = R_i
+    contact_params['R_j'] = R_j
+    contact_params['k_n'] *= scale   # For YADE, if we set E = k_n and it's automatically scaled.
+    contact_params['k_s'] *= scale   # Original ratio preserved
     motion = my_analytical_motion(
         [0,0,0],[0,0,0],[0,0,0],             # no rigid-body motion
         [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
-        0, 0.04*R, 1.0, np.pi/2, 0, [-(R_i+R_j),0,0], 
+        0, 0.04*R, 1.0, np.pi/2, 0, [-2.0*R,0,0], 
         0, 0, 0, 0, 0,                       # no twist
         0, 0, 0, 0, 0,                       # no roll
         0, 0, 0, 0, 0,                       # no shear
@@ -266,13 +269,14 @@ elif testID == 13:
     # Distinction between rolling and bending
     R_i = 2.0    # large particle
     R_j = 0.2    # small particle  (size ratio 10:1)
+    R = (R_i + R_j)/2.0
     contact_params['k_r'] = 0.25e7
     contact_params['R_i'] = R_i
     contact_params['R_j'] = R_j
     motion = my_analytical_motion(
         [0,0,0],[0,0,0],[0,0,0],             # no rigid-body motion
         [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
-        0, 0, 0, 0, 0, [0,0,0.98*(R_i+R_j)], # constant contact (~2% initial overlap)
+        0, 0, 0, 0, 0, [0,0,1.96*R], # constant contact (~2% initial overlap)
         0, 0, 0, 0, 0,                       # no twist
         0, 0.05*np.pi, 1.0, 0, 0,             # pure oscillating roll
         0, 0, 0, 0, 0,                       # no shear: F_s must remain zero
@@ -474,21 +478,9 @@ else:
             Tb_spring_dashpot_Coulomb
             )
     elif testID == 12:
-        R_i = 1.0
-        R_j = 1.0
-        contact_params['k_n'] = 1.0e7
-        contact_params['k_s'] = 0.5e7
-        motion = my_analytical_motion(
-            [0,0,0],[0,0,0],[0,0,0],             # no rigid-body motion
-            [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
-            0, 0.04*R, 1.0, np.pi/2, 0, [-(R_i+R_j),0,0], 
-            0, 0, 0, 0, 0,                       # no twist
-            0, 0, 0, 0, 0,                       # no roll
-            0, 0, 0, 0, 0,                       # no shear
-            [0,0,1.0], [0,1.0,0],                # roll and shear axes
-            tmax, dt,
-            R_i, R_j
-        )
+        # Putting these back to their original values
+        contact_params['k_n'] /= scale
+        contact_params['k_s'] /= scale
         results = my_analytical_contact(
             motion,
             contact_params,

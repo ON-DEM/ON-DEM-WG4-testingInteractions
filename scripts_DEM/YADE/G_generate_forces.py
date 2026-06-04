@@ -93,6 +93,35 @@ F_j       = as_np('F_j')              # analytical forces if present (N,3)
 T_i       = as_np('T_i')              # analytical torques if present (N,3)
 T_j       = as_np('T_j')              # analytical torques if present (N,3)
 
+# --- On-step <-> half-step velocity conversion (leapfrog consistency) ---
+# The analytical solution stores ON-step velocities v(t_k).
+# YADE's NewtonIntegrator is a leapfrog scheme whose state.vel lives at the
+# HALF-steps v(t_k +/- dt/2). To keep imposition and measurement mutually
+# consistent we convert between the two using the kinematic leapfrog relations
+# below. They involve velocities only (no acceleration), so the identical code
+# serves both linear and angular velocity:
+#
+#   on  -> half : v_half(t_k + dt/2) = 1/2 [ v(t_k) + v(t_{k+1}) ]   (forward average)
+#   half -> on  : v(t_k)             = 1/2 [ v_half(t_k - dt/2) + v_half(t_k + dt/2) ]
+#
+# imposeKinematics() imposes the forward half-step; saveKinematics() inverts it
+# with the trailing average (previous + current half-step). The round trip is
+# centred on t_k with O(dt^2) error, and the measurement still returns the correct
+# on-step velocity when forces (rather than velocities) are imposed instead.
+def on_to_half(v_on):
+    """Forward leapfrog average of an (N,3) on-step series -> half-step series at t_k + dt/2.
+    The final sample has no successor, so it is left at its on-step value."""
+    v_on = np.asarray(v_on, float)
+    v_half = v_on.copy()
+    v_half[:-1] = 0.5 * (v_on[:-1] + v_on[1:])
+    return v_half
+
+# Half-step velocities/angular velocities to impose (computed once from the on-step arrays).
+v_i_half     = None if v_i     is None else on_to_half(v_i)
+v_j_half     = None if v_j     is None else on_to_half(v_j)
+omega_i_half = None if omega_i is None else on_to_half(omega_i)
+omega_j_half = None if omega_j is None else on_to_half(omega_j)
+
 # --- Initialize simulation scene ---
 # Add Maxwell material
 O.materials.append(
@@ -122,16 +151,21 @@ O.bodies[1].state.ori = Quaternion((q_j[0,0], q_j[0,1], q_j[0,2]), q_j[0,3])
 
 # --- Time stepping logic ---
 current_index = 0
-def imposeState():
+def imposeKinematics():
+    """Impose the prescribed state for the current step: on-step positions and
+    orientations, plus HALF-step linear/angular velocities (converted from the
+    analytical on-step velocities by on_to_half(), so the leapfrog integrator and
+    saveKinematics() both see a consistent half-step value)."""
     global current_index
     if current_index < N:
-        # velocities (arrays must be shape (N,3))
-        O.bodies[0].state.vel = (v_i[current_index,0], v_i[current_index,1], v_i[current_index,2])
-        O.bodies[1].state.vel = (v_j[current_index,0], v_j[current_index,1], v_j[current_index,2])
+        # velocities -- impose the HALF-step value (leapfrog); see on_to_half() above.
+        # (arrays must be shape (N,3))
+        O.bodies[0].state.vel = (v_i_half[current_index,0], v_i_half[current_index,1], v_i_half[current_index,2])
+        O.bodies[1].state.vel = (v_j_half[current_index,0], v_j_half[current_index,1], v_j_half[current_index,2])
 
-        # angular velocities (arrays must be shape (N,3))
-        O.bodies[0].state.angVel = (omega_i[current_index,0], omega_i[current_index,1], omega_i[current_index,2])
-        O.bodies[1].state.angVel = (omega_j[current_index,0], omega_j[current_index,1], omega_j[current_index,2])
+        # angular velocities -- impose the HALF-step value as well (arrays must be shape (N,3))
+        O.bodies[0].state.angVel = (omega_i_half[current_index,0], omega_i_half[current_index,1], omega_i_half[current_index,2])
+        O.bodies[1].state.angVel = (omega_j_half[current_index,0], omega_j_half[current_index,1], omega_j_half[current_index,2])
 
         # positions (only if imposePos is True) -- arrays must be shape (N,3)
         if imposePos:
@@ -159,9 +193,12 @@ _prev_w2 = None   # angular velocity of body 1 from the previous half-step
 _kinem = {}
 
 def saveKinematics():
-	"""Record positions, orientations, and on-step velocities BEFORE imposeState().
-	The bodies still hold the state from the end of the previous step, which is
-	the correct kinematic snapshot for the current time t."""
+	"""Record positions, orientations, and on-step velocities AFTER imposeKinematics().
+	Velocities are stored by YADE at the leapfrog half-steps; imposeKinematics() has
+	just written the half-step value for this step, so the on-step velocity is recovered
+	with the trailing average v(t_k) = 1/2 [v_half(t_k - dt/2) + v_half(t_k + dt/2)],
+	i.e. 1/2 * (previous half-step + current half-step). Positions and orientations are
+	on-step and are stored directly."""
 	global _prev_v1, _prev_v2, _prev_w1, _prev_w2, _kinem
 	s1 = O.bodies[0].state
 	s2 = O.bodies[1].state
@@ -196,6 +233,28 @@ def saveKinematics():
 		w2x=w2_t[0], w2y=w2_t[1], w2z=w2_t[2],
 	)
  
+# --- Force/torque imposition (counterpart to imposeKinematics) ---
+# Currently unused (commented out in O.engines below). Provided so the same script
+# can drive a FORCE-controlled test: prescribe the analytical contact reaction and
+# let NewtonIntegrator produce the kinematics, which saveKinematics() then measures.
+# Forces and torques live ON-step in the leapfrog scheme (the acceleration a(t_k) is
+# evaluated at t_k), so -- unlike velocities -- they need no half-step conversion.
+# Uses its own step counter so it stays in sync whether or not imposeKinematics()
+# is also active (each runs once per iteration).
+current_index_FT = 0
+def imposeForcesTorques():
+    """Add the analytical on-step forces and torques to both bodies for this step.
+    Place AFTER InteractionLoop in O.engines to override/augment the computed contact
+    force; if used as the sole force source, disable InteractionLoop."""
+    global current_index_FT
+    k = current_index_FT
+    if k < N:
+        if F_i is not None: O.forces.addF(0, Vector3(F_i[k,0], F_i[k,1], F_i[k,2]))
+        if F_j is not None: O.forces.addF(1, Vector3(F_j[k,0], F_j[k,1], F_j[k,2]))
+        if T_i is not None: O.forces.addT(0, Vector3(T_i[k,0], T_i[k,1], T_i[k,2]))
+        if T_j is not None: O.forces.addT(1, Vector3(T_j[k,0], T_j[k,1], T_j[k,2]))
+    current_index_FT += 1
+
 def saveForcesTorques():
 	"""Record forces and torques AFTER InteractionLoop(), then commit the full
 	snapshot (kinematics staged by saveKinematics() + forces/torques) to plot."""
@@ -210,17 +269,19 @@ def saveForcesTorques():
 
 # --- Engines ---
 # Engine order matters for temporal consistency:
-#   1. saveKinematics  – snapshot pos/ori/vel at time t, before any override
-#   2. imposeState     – set prescribed pos/ori/vel for this step
-#   3. InteractionLoop – compute contact forces from the newly imposed geometry
-#   4. saveForcesTorques – snapshot forces/torques and commit the full record
-#   5. NewtonIntegrator – advance the simulation by dt
+#   1. (iff checking) saveKinematics  – snapshot pos/ori/vel at time t, BEFORE imposeKinematics
+#   2. imposeKinematics     – set prescribed pos/ori (on-step) and vel (half-step) for this step
+#   3. (iff measuring) saveKinematics  – snapshot the freshly-imposed pos/ori/half-step vel
+#   4. InteractionLoop – compute contact forces from the newly imposed geometry
+#   5. imposeForcesTorques  – set prescribed froces/torques (on-step) for this step
+#   6. (iff measuring) saveForcesTorques – snapshot forces/torques and commit the full record
+#   7. NewtonIntegrator – advance the simulation by dt
 O.dt = dt[0]
 O.engines = [
 	ForceResetter(),
 	InsertionSortCollider([Bo1_Sphere_Aabb()],verletDist=0.5*(R_i+R_j)),
+	PyRunner(command='imposeKinematics()',  initRun=True, iterPeriod=1),
 	PyRunner(command='saveKinematics()',    initRun=True, iterPeriod=1),
-	PyRunner(command='imposeState()',       initRun=True, iterPeriod=1),
 	InteractionLoop(
 		[Ig2_Sphere_Sphere_ScGeom6D(avoidGranularRatcheting=True,exactRotations=False)],
 		[Ip2_MaxwellMat_MaxwellMat_MaxwellPhys(
@@ -232,6 +293,7 @@ O.engines = [
 		)],
 		[Law2_ScGeom_MaxwellPhys_general(limitViscousPart=True,preserveHistory=True)]
 	),
+# 	PyRunner(command='imposeForcesTorques()', initRun=True, iterPeriod=1),
 	PyRunner(command='saveForcesTorques()', initRun=True, iterPeriod=1),
 	NewtonIntegrator(gravity=(0, 0, 0), damping=0)
 ]

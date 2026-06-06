@@ -4,6 +4,32 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 #
+#   CLOSED-FORM INTEGRAL HELPERS
+#
+# Antiderivatives of e^{k t} sin(Omega t + psi) and e^{k t} cos(Omega t + psi),
+# evaluated at t = tau. These are the building blocks for the exact per-step
+# contact increments (see _rotated_integral below). The only singular case is
+# k = Omega = 0, where the integrand is the constant sin(psi) / cos(psi).
+# NOTE: near a resonance Omega -> 0 with k = 0 the closed form is analytically
+# exact but loses precision through cancellation in the F(t_b) - F(t_a) difference;
+# the test suite never places |omega_f| exactly on a mode frequency, so this is
+# not exercised.
+
+def _expsin_antideriv(k, Omega, psi, tau):
+    """Antiderivative of e^{k t} sin(Omega t + psi) at t = tau."""
+    d = k * k + Omega * Omega
+    if d == 0.0:
+        return np.sin(psi) * tau
+    return np.exp(k * tau) * (k * np.sin(Omega * tau + psi) - Omega * np.cos(Omega * tau + psi)) / d
+
+def _expcos_antideriv(k, Omega, psi, tau):
+    """Antiderivative of e^{k t} cos(Omega t + psi) at t = tau."""
+    d = k * k + Omega * Omega
+    if d == 0.0:
+        return np.cos(psi) * tau
+    return np.exp(k * tau) * (k * np.cos(Omega * tau + psi) + Omega * np.sin(Omega * tau + psi)) / d
+
+#
 #   GENERATE MOTION OF TWO PARTICLES
 #
 
@@ -103,43 +129,28 @@ def my_analytical_motion(
     if not np.isclose(np.dot(n_s, n0), 0):
         raise ValueError("Vector n_s must be orthogonal to initial branch vector.")
 
+    # Frame-rotation axis/angle for the contact directions: the contact frame
+    # rotates rigidly as Rb(t) = exp([omega_f]x t), i.e. about ehat = omega_f/|omega_f|
+    # at rate phi_f = |omega_f|. These drive the closed-form rotating-frame integrals.
+    phi_f = np.linalg.norm(omega_f)
+    ehat = omega_f / phi_f if phi_f > 0 else np.zeros(3)
+
     # Time array
     t = np.arange(0, t_end + dt/2, dt)
     N = t.size
 
-    # Preallocate time-series arrays
-    x_i = np.zeros((N,3)); x_j = np.zeros((N,3))
-    v_i = np.zeros((N,3)); v_j = np.zeros((N,3))
-    a_i = np.zeros((N,3)); a_j = np.zeros((N,3))
-    omega_i = np.zeros((N,3)); omega_j = np.zeros((N,3))
-    n_ij = np.zeros((N,3)); v_ijn = np.zeros((N,3)); a_ijn = np.zeros((N,3))
-    l_ij = np.zeros((N,3))
-    u_n = np.zeros((N,1))
-    v_r = np.zeros((N,3)); du_r = np.zeros((N,3))
-    v_s = np.zeros((N,3)); du_s = np.zeros((N,3))
-    omega_t = np.zeros((N,3)); dtheta_t = np.zeros((N,3))
-    omega_b = np.zeros((N,3)); dtheta_b = np.zeros((N,3))
-    dtheta_vec_i = np.zeros((N,3)); dtheta_vec_j = np.zeros((N,3))
+    # Per-step contact increments are filled from index 1 below (index 0 stays zero,
+    # as no step precedes t_0). Every other time series is assigned directly from the
+    # vectorised expressions further down.
+    du_r = np.zeros((N,3)); du_s = np.zeros((N,3))
+    dtheta_t = np.zeros((N,3)); dtheta_b = np.zeros((N,3))
 
-    # Precompute constants
+    # Precompute constants for the normal branch magnitude (_branch_mag).
+    # The twist/roll/shear increments no longer need precomputed constants: they are
+    # evaluated in closed form by _rotated_integral via the antiderivative helpers.
     denom = w**2 + k**2
     zero_k = np.isclose(k, 0)
     zero_w = np.isclose(w, 0)
-
-    # Precompute constants for twist angular velocity
-    denom_t = w_t**2 + k_t**2
-    zero_k_t = np.isclose(k_t, 0)
-    zero_w_t = np.isclose(w_t, 0)
-
-    # Precompute constants for roll angular velocity
-    denom_r = w_r**2 + k_r**2
-    zero_k_r = np.isclose(k_r, 0)
-    zero_w_r = np.isclose(w_r, 0)
-
-    # Precompute constants for shear angular velocity
-    denom_s = w_s**2 + k_s**2
-    zero_k_s = np.isclose(k_s, 0)
-    zero_w_s = np.isclose(w_s, 0)
 
     def _branch_mag(ti):
         """Analytical branch-vector magnitude |l_ij|(t) (Eq. 24)."""
@@ -159,211 +170,179 @@ def my_analytical_motion(
                         - ( k * np.sin(phi) - w * np.cos(phi) )
                     ))
 
-    def _velocities_at(ti):
-        """Exact analytical linear/angular velocities at an arbitrary time ti.
-
-        Returns (v_i, v_j, omega_i, omega_j) as (3,) arrays. This evaluates the
-        same closed-form expressions used on-step in the main loop, so it can be
-        called at the half-step times t - dt/2 to obtain the exact half-step
-        velocities (including the value at t = -dt/2 for idx 0)."""
-        Rb = Rotation.from_rotvec(omega_f * ti)
-        n = Rb.apply(n0)                                            # contact normal (Eq. 5)
-        mag = _branch_mag(ti)                                       # |l_ij| (Eq. 24)
-        l = mag * n                                                 # branch vector (Eq. 6)
-        v_ijn_loc = (A - B * np.sin(w * ti + phi) * np.exp(k * ti)) * n  # (Eq. 23)
-        xi = Rb.apply(x_f) + v_f * ti                              # x_i (Eq. 1)
-
-        # Linear velocities (Eq. 3 and 4)
-        vi = v_f + np.cross(omega_f, xi)
-        vj = vi + np.cross(omega_f, l) + v_ijn_loc
-
-        # Angular velocities (Eq. 23)
-        omegar_t = A_t - B_t * np.sin(w_t * ti + phi_t) * np.exp(k_t * ti)
-        omegar_r = A_r - B_r * np.sin(w_r * ti + phi_r) * np.exp(k_r * ti)
-        omegar_s = A_s - B_s * np.sin(w_s * ti + phi_s) * np.exp(k_s * ti)
+    def _vel_at(tarr):
+        """Exact analytical linear/angular velocities at the times in tarr (1-D),
+        vectorised over time: returns (v_i, v_j, omega_i, omega_j) each shaped
+        (len(tarr), 3). Evaluates the same closed-form expressions used on-step, so
+        it serves both the half-step velocities (tarr = t - dt/2, exact at t = -dt/2)
+        and the Gauss-node angular-velocity samples of the Magnus-4 orientation step."""
+        tarr = np.atleast_1d(np.asarray(tarr, float))
+        Rb = Rotation.from_rotvec(omega_f[None, :] * tarr[:, None])  # batch of len(tarr) rotations
+        n = Rb.apply(n0)                                            # (M,3) contact normal (Eq. 5)
         nrr = Rb.apply(n_r)
         nrs = Rb.apply(n_s)
-        wi = (omega_f
-              + 0.5 * omegar_t * n
-              + 0.5/R_i * omegar_r * nrr
-              + 0.5/R_i * omegar_s * nrs)
-        wj = (omega_f
-              - 0.5 * omegar_t * n
-              - 0.5/R_j * omegar_r * nrr
-              + 0.5/R_j * omegar_s * nrs)
-        return vi, vj, wi, wj
+        mag = _branch_mag(tarr)                                     # (M,) |l_ij| (Eq. 24)
+        s_n = A - B * np.sin(w * tarr + phi) * np.exp(k * tarr)     # (M,) normal rate (Eq. 23)
+        v_ijn_loc = s_n[:, None] * n
+        xi = Rb.apply(x_f) + v_f[None, :] * tarr[:, None]          # x_i (Eq. 1)
 
-    for idx, ti in enumerate(t):
-        # Body rotation, this works because omega_f is constant.
-        Rb = Rotation.from_rotvec(omega_f * ti)
-
-        # Contact normal (Eq. 5)
-        n_ij[idx] = Rb.apply(n0)
-
-        # Compute relative normal velocity (Eq. 23)
-        v_ijn[idx] = (A - B * np.sin(w * ti + phi) * np.exp(k * ti)) * n_ij[idx]
-
-        # Compute relative normal acceleration (Eq. 26)
-        a_ijn[idx] = -B * np.exp(k * ti) * (w * np.cos(w * ti + phi) + k * np.sin(w * ti + phi)) * n_ij[idx]
-
-        # Compute branch magnitude (Eq. 24)
-        mag = _branch_mag(ti)
-        # Branch vector (Eq. 6)
-        l_ij[idx] = mag * n_ij[idx]
-        
-        # Positions (Eq. 1 and 2)
-        x_i[idx] = Rb.apply(x_f) + v_f * ti
-        x_j[idx] = x_i[idx] + l_ij[idx]
-
-        # Velocities (Eq. 3 and 4)
-        v_i[idx] = v_f + np.cross(omega_f, x_i[idx])
-        v_j[idx] = v_i[idx] + np.cross(omega_f, l_ij[idx]) + v_ijn[idx]
-        # Equivalently: v_j[idx] = v_f + np.cross(omega_f, x_j[idx]) + v_ijn[idx]
-
-        # Accelerations
-        # a_i = omega_f × (omega_f × x_i)
-        a_i[idx] = np.cross(omega_f, np.cross(omega_f, x_i[idx]))
-        # a_j = a_i + a_ijn + 2*v_ijn*(omega_f × n_ij) + |l_ij|*omega_f × (omega_f × n_ij)
-        a_j[idx] = (a_i[idx] 
-                    + a_ijn[idx] 
-                    + 2 * np.linalg.norm(v_ijn[idx]) * np.cross(omega_f, n_ij[idx])
-                    + mag * np.cross(omega_f, np.cross(omega_f, n_ij[idx])))
+        # Linear velocities (Eq. 3 and 4)
+        vi = v_f[None, :] + np.cross(omega_f, xi)
+        vj = vi + np.cross(omega_f, mag[:, None] * n) + v_ijn_loc
 
         # Angular velocities (Eq. 23)
-        omegar_t = A_t - B_t * np.sin(w_t * ti + phi_t) * np.exp(k_t * ti)
-        omegar_r = A_r - B_r * np.sin(w_r * ti + phi_r) * np.exp(k_r * ti)
-        omegar_s = A_s - B_s * np.sin(w_s * ti + phi_s) * np.exp(k_s * ti)
-        # Rotated direction vectors (Eq. 9 and 10)
-        nr_r = Rb.apply(n_r)
-        nr_s = Rb.apply(n_s)
-        omega_i[idx] = (omega_f
-                        + 0.5 * omegar_t * n_ij[idx]
-                        + 0.5/R_i * omegar_r * nr_r
-                        + 0.5/R_i * omegar_s * nr_s)
-        omega_j[idx] = (omega_f
-                        - 0.5 * omegar_t * n_ij[idx]
-                        - 0.5/R_j * omegar_r * nr_r
-                        + 0.5/R_j * omegar_s * nr_s)
-        
-        # Twist, roll, and shear velocities (Eq. 18 and 20)
-        omega_t[idx] = omegar_t * n_ij[idx]
-        v_r[idx] = omegar_r * np.cross(nr_r, n_ij[idx])
-        v_s[idx] = omegar_s * np.cross(nr_s, n_ij[idx])
-        omega_b[idx] = omega_i[idx] - omega_j[idx] - omega_t[idx]
+        o_t = A_t - B_t * np.sin(w_t * tarr + phi_t) * np.exp(k_t * tarr)
+        o_r = A_r - B_r * np.sin(w_r * tarr + phi_r) * np.exp(k_r * tarr)
+        o_s = A_s - B_s * np.sin(w_s * tarr + phi_s) * np.exp(k_s * tarr)
+        wi = (omega_f[None, :] + 0.5 * o_t[:, None] * n
+              + (0.5/R_i) * o_r[:, None] * nrr + (0.5/R_i) * o_s[:, None] * nrs)
+        wj = (omega_f[None, :] - 0.5 * o_t[:, None] * n
+              - (0.5/R_j) * o_r[:, None] * nrr + (0.5/R_j) * o_s[:, None] * nrs)
+        return vi, vj, wi, wj
 
-        # Compute analytical displacement increments over last timestep
-        if idx == 0:
-            # First timestep: no previous timestep exists, so increments are zero
-            dtheta_t[idx] = 0.0
-            du_r[idx] = np.zeros(3)
-            du_s[idx] = np.zeros(3)
-            dtheta_b[idx] = 0.0
-        else:
-            # Compute integral of angular velocities over [t_{i-1}, t_i]
-            t_prev = t[idx-1]
-            
-            # Twist displacement increment (scalar, integrated along n_ij direction)
-            if zero_k_t and zero_w_t:
-                du_theta_mag = A_t * dt - B_t * dt * np.sin(phi_t)
-            elif zero_k_t:
-                du_theta_mag = A_t * dt - (B_t / w_t) * (np.cos(w_t * t_prev + phi_t) - np.cos(w_t * ti + phi_t))
-            elif zero_w_t:
-                du_theta_mag = A_t * dt - (B_t / k_t) * np.sin(phi_t) * (np.exp(k_t * ti) - np.exp(k_t * t_prev))
-            else:
-                du_theta_mag = (A_t * dt
-                               - (B_t / denom_t) 
-                               * (
-                                   ( k_t * np.sin(w_t * ti + phi_t) - w_t * np.cos(w_t * ti + phi_t) ) 
-                                   * np.exp(k_t * ti)
-                                   - ( k_t * np.sin(w_t * t_prev + phi_t) - w_t * np.cos(w_t * t_prev + phi_t) )
-                                   * np.exp(k_t * t_prev)
-                               ))
-            dtheta_t[idx] = du_theta_mag * n_ij[idx]
+    def _rotated_integral(d0, A_x, B_x, w_x, psi_x, k_x, t_a, t_b):
+        """Exact closed-form integral  J = int_{t_a}^{t_b} s(tau) Rb(tau) d0 dtau,
+        with the exp-sinusoid rate  s(tau) = A_x - B_x sin(w_x tau + psi_x) e^{k_x tau}.
 
-            # Roll displacement increment (vector)
-            if zero_k_r and zero_w_r:
-                du_r_mag = A_r * dt - B_r * dt * np.sin(phi_r)
-            elif zero_k_r:
-                du_r_mag = A_r * dt - (B_r / w_r) * (np.cos(w_r * t_prev + phi_r) - np.cos(w_r * ti + phi_r))
-            elif zero_w_r:
-                du_r_mag = A_r * dt - (B_r / k_r) * np.sin(phi_r) * (np.exp(k_r * ti) - np.exp(k_r * t_prev))
-            else:
-                du_r_mag = (A_r * dt
-                           - (B_r / denom_r) 
-                           * (
-                               ( k_r * np.sin(w_r * ti + phi_r) - w_r * np.cos(w_r * ti + phi_r) ) 
-                               * np.exp(k_r * ti)
-                               - ( k_r * np.sin(w_r * t_prev + phi_r) - w_r * np.cos(w_r * t_prev + phi_r) )
-                               * np.exp(k_r * t_prev)
-                           ))
-            du_r[idx] = du_r_mag * np.cross(nr_r, n_ij[idx])
+        Every twist/roll/shear increment has this form because the rotating contact
+        directions satisfy Rb(tau) d0 = a cos(phi_f tau) + b sin(phi_f tau) + c
+        (Rodrigues), so J = a*C + b*S + c*M with
+            M = int s dtau,  C = int s cos(phi_f tau) dtau,  S = int s sin(phi_f tau) dtau.
+        Products like sin(w_x tau)cos(phi_f tau) reduce (product-to-sum) to the same
+        antiderivatives at the combined frequencies w_x and w_x +/- phi_f.
+        For phi_f = 0 (non-rotating frame) the exact result collapses to M * d0.
+        """
+        d0 = np.asarray(d0, float)
+        # M = int [A_x - B_x sin(w_x tau + psi_x) e^{k_x tau}] dtau
+        def _M_at(tau):
+            return A_x * tau - B_x * _expsin_antideriv(k_x, w_x, psi_x, tau)
+        M = _M_at(t_b) - _M_at(t_a)   # scalar, or (L,) if t_a/t_b are arrays
 
-            # Shear displacement increment (vector)
-            if zero_k_s and zero_w_s:
-                du_s_mag = A_s * dt - B_s * dt * np.sin(phi_s)
-            elif zero_k_s:
-                du_s_mag = A_s * dt - (B_s / w_s) * (np.cos(w_s * t_prev + phi_s) - np.cos(w_s * ti + phi_s))
-            elif zero_w_s:
-                du_s_mag = A_s * dt - (B_s / k_s) * np.sin(phi_s) * (np.exp(k_s * ti) - np.exp(k_s * t_prev))
-            else:
-                du_s_mag = (A_s * dt
-                           - (B_s / denom_s) 
-                           * (
-                               ( k_s * np.sin(w_s * ti + phi_s) - w_s * np.cos(w_s * ti + phi_s) ) 
-                               * np.exp(k_s * ti)
-                               - ( k_s * np.sin(w_s * t_prev + phi_s) - w_s * np.cos(w_s * t_prev + phi_s) )
-                               * np.exp(k_s * t_prev)
-                           ))
-            du_s[idx] = du_s_mag * np.cross(nr_s, n_ij[idx])
+        if phi_f == 0.0:
+            return np.multiply.outer(M, d0)   # -> (3,) or (L,3)
 
-            # Compute analytical rotation increments from t_{i-1} to t_i
-            # For particle i: omega_i = omega_f + 0.5*omegar_t*n_ij + 0.5/R_i*omegar_r*nr_r + 0.5/R_i*omegar_s*nr_s
-            # Integrating gives: dtheta_vec_i = omega_f*dt + 0.5*du_theta_mag*n_ij + 0.5/R_i*du_r_mag*nr_r + 0.5/R_i*du_s_mag*nr_s
-            dtheta_vec_i[idx] = (omega_f * dt 
-                                + 0.5 * du_theta_mag * n_ij[idx] 
-                                + 0.5/R_i * du_r_mag * nr_r 
-                                + 0.5/R_i * du_s_mag * nr_s)
-            # For particle j: omega_j = omega_f - 0.5*omegar_t*n_ij - 0.5/R_j*omegar_r*nr_r + 0.5/R_j*omegar_s*nr_s
-            dtheta_vec_j[idx] = (omega_f * dt 
-                                - 0.5 * du_theta_mag * n_ij[idx] 
-                                - 0.5/R_j * du_r_mag * nr_r 
-                                + 0.5/R_j * du_s_mag * nr_s)
+        # C = int s cos(phi_f tau) dtau ;  S = int s sin(phi_f tau) dtau
+        # sin(w tau + psi) cos(phi tau) = 1/2 [ sin((w+phi)tau+psi) + sin((w-phi)tau+psi) ]
+        # sin(w tau + psi) sin(phi tau) = 1/2 [ cos((w-phi)tau+psi) - cos((w+phi)tau+psi) ]
+        def _C_at(tau):
+            return (A_x * _expcos_antideriv(0.0, phi_f, 0.0, tau)
+                    - B_x * 0.5 * (_expsin_antideriv(k_x, w_x + phi_f, psi_x, tau)
+                                   + _expsin_antideriv(k_x, w_x - phi_f, psi_x, tau)))
+        def _S_at(tau):
+            return (A_x * _expsin_antideriv(0.0, phi_f, 0.0, tau)
+                    - B_x * 0.5 * (_expcos_antideriv(k_x, w_x - phi_f, psi_x, tau)
+                                   - _expcos_antideriv(k_x, w_x + phi_f, psi_x, tau)))
+        C = _C_at(t_b) - _C_at(t_a)
+        S = _S_at(t_b) - _S_at(t_a)
 
-            # For bending
-            dtheta_b[idx] = dtheta_vec_i[idx] - dtheta_vec_j[idx] - dtheta_t[idx]
-    
-    # Exact analytical half-step velocities.
-    # Many codes' leapfrog integrator stores velocities at the half-steps v(t_k - dt/2)
-    # (the value left over from the previous Newton update, used by the contact law
-    # at force-evaluation time t_k). Rather than reconstructing these from the on-step
-    # arrays by averaging (which costs O(dt^2) accuracy), we evaluate the closed-form
-    # velocity expressions directly at t_k - dt/2. Entry idx therefore holds
-    # v(t_k - dt/2); for idx 0 this is the exact value at t = -dt/2.
-    v_i_half = np.zeros((N,3)); v_j_half = np.zeros((N,3))
-    omega_i_half = np.zeros((N,3)); omega_j_half = np.zeros((N,3))
-    for idx, ti in enumerate(t):
-        t_half = ti - dt/2
-        v_i_half[idx], v_j_half[idx], omega_i_half[idx], omega_j_half[idx] = _velocities_at(t_half)
+        c_vec = ehat * np.dot(ehat, d0)   # component along the rotation axis (invariant)
+        a_vec = d0 - c_vec                # perpendicular component (rotates as cos)
+        b_vec = np.cross(ehat, d0)        # quadrature component (rotates as sin)
+        return (np.multiply.outer(C, a_vec)
+                + np.multiply.outer(S, b_vec)
+                + np.multiply.outer(M, c_vec))
+
+    # --- On-step kinematics (vectorised over all times t) ---
+    # One batched frame rotation Rb(t) = exp([omega_f]x t) for all steps; every line
+    # below is an array op over the N time samples.
+    Rb = Rotation.from_rotvec(omega_f[None, :] * t[:, None])
+    n_ij = Rb.apply(n0)            # (N,3) contact normal (Eq. 5)
+    nr_r = Rb.apply(n_r)           # (N,3) rotated roll axis (Eq. 9, 10)
+    nr_s = Rb.apply(n_s)           # (N,3) rotated shear axis
+    Rb_xf = Rb.apply(x_f)
+
+    sin_n = np.sin(w * t + phi); exp_n = np.exp(k * t)
+    s_n = A - B * sin_n * exp_n                                  # normal rate (Eq. 23)
+    v_ijn = s_n[:, None] * n_ij
+    a_ijn = (-B * exp_n * (w * np.cos(w * t + phi) + k * sin_n))[:, None] * n_ij  # (Eq. 26)
+
+    mag = _branch_mag(t)                                         # (N,) |l_ij| (Eq. 24)
+    l_ij = mag[:, None] * n_ij                                   # branch vector (Eq. 6)
+
+    # Positions (Eq. 1 and 2)
+    x_i = Rb_xf + v_f[None, :] * t[:, None]
+    x_j = x_i + l_ij
+
+    # Linear velocities (Eq. 3 and 4)
+    v_i = v_f[None, :] + np.cross(omega_f, x_i)
+    v_j = v_i + np.cross(omega_f, l_ij) + v_ijn
+
+    # Accelerations: a_i = omega_f x (omega_f x x_i);
+    # a_j = a_i + a_ijn + 2|v_ijn|(omega_f x n_ij) + |l_ij| omega_f x (omega_f x n_ij)
+    cof_n = np.cross(omega_f, n_ij)
+    a_i = np.cross(omega_f, np.cross(omega_f, x_i))
+    a_j = (a_i + a_ijn
+           + 2 * np.linalg.norm(v_ijn, axis=1)[:, None] * cof_n
+           + mag[:, None] * np.cross(omega_f, cof_n))
+
+    # Angular velocities (Eq. 23)
+    omegar_t = A_t - B_t * np.sin(w_t * t + phi_t) * np.exp(k_t * t)
+    omegar_r = A_r - B_r * np.sin(w_r * t + phi_r) * np.exp(k_r * t)
+    omegar_s = A_s - B_s * np.sin(w_s * t + phi_s) * np.exp(k_s * t)
+    omega_i = (omega_f[None, :] + 0.5 * omegar_t[:, None] * n_ij
+               + (0.5/R_i) * omegar_r[:, None] * nr_r + (0.5/R_i) * omegar_s[:, None] * nr_s)
+    omega_j = (omega_f[None, :] - 0.5 * omegar_t[:, None] * n_ij
+               - (0.5/R_j) * omegar_r[:, None] * nr_r + (0.5/R_j) * omegar_s[:, None] * nr_s)
+
+    # Twist, roll, and shear velocities (Eq. 18 and 20)
+    omega_t = omegar_t[:, None] * n_ij
+    v_r = omegar_r[:, None] * np.cross(nr_r, n_ij)
+    v_s = omegar_s[:, None] * np.cross(nr_s, n_ij)
+    omega_b = omega_i - omega_j - omega_t
+
+    # Exact analytical half-step velocities v(t_k - dt/2), evaluated in closed form for
+    # all steps at once (no O(dt^2) reconstruction). Entry idx holds v(t_k - dt/2); for
+    # idx 0 this is the exact value at t = -dt/2. These are the values a leapfrog
+    # integrator stores at force-evaluation time.
+    v_i_half, v_j_half, omega_i_half, omega_j_half = _vel_at(t - dt/2)
 
     # Compute normal overlap (Eq. 12)
     l_mag = np.linalg.norm(l_ij, axis=1)
     u_n = (R_i + R_j - l_mag).reshape(-1,1) # Surface-to-surface across entire contact
     u_n = np.maximum(u_n, 0.0)
 
-    # Compute orientation using the midpoint (half-step) angular velocity.
-    # The rotation increment for the step [t_{k-1}, t_k] is omega(t_k - dt/2) * dt,
-    # i.e. the midpoint-rule integral of the angular velocity. Because omega_*_half[k]
-    # is evaluated exactly at the step midpoint t_k - dt/2, this is second-order
-    # accurate in dt, whereas building the increment from the step-endpoint direction
-    # vectors (dtheta_vec_i/j below) is only first-order whenever the contact frame
-    # rotates (omega_f != 0). Index 0 is the initial orientation, so its increment is
-    # zeroed (omega_*_half[0] = omega(-dt/2) would otherwise apply a spurious rotation).
-    dtheta_mid_i = omega_i_half * dt
-    dtheta_mid_j = omega_j_half * dt
-    dtheta_mid_i[0] = 0.0
-    dtheta_mid_j[0] = 0.0 # We don't use this now - check later.
-    q_i = my_integrate_rotation(init_q_i, dtheta_vec_i)
-    q_j = my_integrate_rotation(init_q_j, dtheta_vec_j)
+    # --- Exact per-step contact increments and orientation (exact-continuum reference) ---
+    # Each increment is the exact closed-form integral J(d0; s) = int s(tau) Rb(tau) d0 dtau
+    # over the step [t_{k-1}, t_k] (see _rotated_integral). The roll/shear DISPLACEMENTS use
+    # the cross-product seed (n_X x n0), since their velocity is s*(n_X x n); the per-particle
+    # rotation RATES use the direction seed n_X. These are pure integrals (no coning term).
+    #
+    # The orientation q cannot be written in closed form (a finite-rotation composition has a
+    # coning/commutator contribution), so it is integrated with a 4th-order Magnus step: two
+    # Gauss-Legendre samples of the exact angular velocity give the leading term, and the
+    # commutator of those samples supplies the coning correction. Index 0 keeps the initial
+    # orientation (zero increment).
+    # Each step covers [t_{k-1}, t_k]; t_a/t_b are the (N-1,) arrays of step endpoints,
+    # so every _rotated_integral call returns the whole (N-1, 3) stack of increments.
+    t_a = t[:-1]; t_b = t[1:]
+    J_t  = _rotated_integral(n0,                A_t, B_t, w_t, phi_t, k_t, t_a, t_b)
+    J_r  = _rotated_integral(n_r,               A_r, B_r, w_r, phi_r, k_r, t_a, t_b)
+    J_s  = _rotated_integral(n_s,               A_s, B_s, w_s, phi_s, k_s, t_a, t_b)
+    Jc_r = _rotated_integral(np.cross(n_r, n0), A_r, B_r, w_r, phi_r, k_r, t_a, t_b)
+    Jc_s = _rotated_integral(np.cross(n_s, n0), A_s, B_s, w_s, phi_s, k_s, t_a, t_b)
+
+    # Twist rotation increment; roll/shear displacement increments (index 0 stays zero)
+    dtheta_t[1:] = J_t
+    du_r[1:]     = Jc_r
+    du_s[1:]     = Jc_s
+
+    # Exact per-particle rotation increments (int omega dtau); used only for bending
+    dth_i = omega_f[None, :] * dt + 0.5 * J_t + (0.5/R_i) * J_r + (0.5/R_i) * J_s
+    dth_j = omega_f[None, :] * dt - 0.5 * J_t - (0.5/R_j) * J_r + (0.5/R_j) * J_s
+    dtheta_b[1:] = dth_i - dth_j - J_t # J_t = dtheta_t[1:]
+
+    # Magnus-4 orientation increments from two Gauss-point angular-velocity samples per step
+    GL = np.sqrt(3.0) / 6.0          # Gauss-Legendre 2-node offset from the midpoint
+    CONE = np.sqrt(3.0) / 12.0       # Magnus-4 commutator (coning) coefficient
+    _, _, wi1, wj1 = _vel_at(t_a + (0.5 - GL) * dt)
+    _, _, wi2, wj2 = _vel_at(t_a + (0.5 + GL) * dt)
+    Omega_i = np.zeros((N,3)); Omega_j = np.zeros((N,3))
+    Omega_i[1:] = 0.5 * dt * (wi1 + wi2) + CONE * dt * dt * np.cross(wi2, wi1)
+    Omega_j[1:] = 0.5 * dt * (wj1 + wj2) + CONE * dt * dt * np.cross(wj2, wj1)
+
+    # Compose orientations from the Magnus-4 increments (index 0 = initial orientation).
+    q_i = my_integrate_rotation(init_q_i, Omega_i)
+    q_j = my_integrate_rotation(init_q_j, Omega_j)
 
     # Package results
     motions = {
@@ -402,21 +381,17 @@ def my_integrate_rotation(initial_quat, theta_vecs):
     # Determine number of steps
     nsteps = theta_vecs.shape[0]
 
-    # Initialize orientation and storage
+    # Pre-build every incremental rotation in one batched from_rotvec call (the
+    # per-step construction was a hotspot), then compose sequentially with the same
+    # world-frame (left) multiplication as before.
+    deltas = Rotation.from_rotvec(theta_vecs)
     orientation = Rotation.from_quat(initial_quat)
     quats = np.empty((nsteps, 4))
     quats[0] = orientation.as_quat()
-    
-    # Loop over each timestep
-    for i in range(nsteps-1):
-        # Use the rotation vector for the next timestep (from t[i] to t[i+1])
-        theta_vec = theta_vecs[i + 1]
-        delta_rot = Rotation.from_rotvec(theta_vec)
-        # Update orientation by quaternion multiplication
-        orientation = delta_rot * orientation  # World frame rotation!
-        # Store new quaternion
-        quats[i + 1] = (orientation.as_quat()).copy()
-    
+    for i in range(nsteps - 1):
+        orientation = deltas[i + 1] * orientation  # World frame rotation!
+        quats[i + 1] = orientation.as_quat()
+
     return quats
 
 # End of file

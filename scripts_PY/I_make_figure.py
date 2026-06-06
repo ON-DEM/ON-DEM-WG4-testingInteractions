@@ -128,18 +128,19 @@ def compute_error_metrics(ana_data, dem_data):
         dem_i = dem_data[key_i][:n]
         dem_j = dem_data[key_j][:n]
         
-        # Magnitude of data
+        # Reference magnitudes for the normalisation N (norm of each reference
+        # vector, summed over both particles -- unchanged).
         ana_mag_i = np.linalg.norm(ana_i, axis=1)
         ana_mag_j = np.linalg.norm(ana_j, axis=1)
-        dem_mag_i = np.linalg.norm(dem_i, axis=1)
-        dem_mag_j = np.linalg.norm(dem_j, axis=1)
-        
-        # Error for particle i and j
-        ER_i = np.sum(np.abs(dem_mag_i - ana_mag_i)) / t_max
-        ER_j = np.sum(np.abs(dem_mag_j - ana_mag_j)) / t_max
-        
+
+        # Error for particle i and j: magnitude of the per-step DIFFERENCE
+        # vector (Eq. 51), NOT the difference of magnitudes. Otherwise,
+        # it would be blind to directional errors when magnitudes are similar.
+        ER_i = np.sum(np.linalg.norm(dem_i - ana_i, axis=1)) / t_max
+        ER_j = np.sum(np.linalg.norm(dem_j - ana_j, axis=1)) / t_max
+
         # Normalization (use N=1 if N=0)
-        N = np.sum(np.abs(ana_mag_i) + np.abs(ana_mag_j)) / t_max
+        N = np.sum(ana_mag_i + ana_mag_j) / t_max
         N_safe = N if N > 0 else 1.0
         
         # Normalized errors
@@ -170,10 +171,17 @@ def compute_error_metrics(ana_data, dem_data):
         'N': N_F
     }
     
-    # Torque balance: T_i - T_j should be zero (they use their own centers as reference)
+    # Torque balance: the conserved quantity is the TOTAL torque about a fixed
+    # point (angular-momentum balance for an isolated contact pair), not T_i - T_j.
+    # For a pure couple T_j = -T_i. Total torque about the origin is origin-independent
+    #  here because F_i + F_j = 0.
     T_i = dem_data['T_i'][:n]
     T_j = dem_data['T_j'][:n]
-    T_balance = T_i - T_j
+    x_i = dem_data['x_i'][:n]
+    x_j = dem_data['x_j'][:n]
+    F_i = dem_data['F_i'][:n]
+    F_j = dem_data['F_j'][:n]
+    T_balance = np.cross(x_i, F_i) + T_i + np.cross(x_j, F_j) + T_j
     T_balance_mag = np.linalg.norm(T_balance, axis=1)
     ER_T_balance = np.sum(T_balance_mag) / t_max
     N_T = metrics['Torque']['N']

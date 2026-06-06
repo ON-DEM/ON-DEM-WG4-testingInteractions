@@ -179,6 +179,7 @@ def my_analytical_motion(
         tarr = np.atleast_1d(np.asarray(tarr, float))
         Rb = Rotation.from_rotvec(omega_f[None, :] * tarr[:, None])  # batch of len(tarr) rotations
         n = Rb.apply(n0)                                            # (M,3) contact normal (Eq. 5)
+
         nrr = Rb.apply(n_r)
         nrs = Rb.apply(n_s)
         mag = _branch_mag(tarr)                                     # (M,) |l_ij| (Eq. 24)
@@ -187,7 +188,7 @@ def my_analytical_motion(
         xi = Rb.apply(x_f) + v_f[None, :] * tarr[:, None]          # x_i (Eq. 1)
 
         # Linear velocities (Eq. 3 and 4)
-        vi = v_f[None, :] + np.cross(omega_f, xi)
+        vi = v_f[None, :] + np.cross(omega_f, xi) - np.cross(omega_f, v_f) * tarr[:, None]
         vj = vi + np.cross(omega_f, mag[:, None] * n) + v_ijn_loc
 
         # Angular velocities (Eq. 23)
@@ -264,13 +265,13 @@ def my_analytical_motion(
     x_j = x_i + l_ij
 
     # Linear velocities (Eq. 3 and 4)
-    v_i = v_f[None, :] + np.cross(omega_f, x_i)
+    v_i = v_f[None, :] + np.cross(omega_f, x_i) - np.cross(omega_f, v_f) * t[:, None]
     v_j = v_i + np.cross(omega_f, l_ij) + v_ijn
 
     # Accelerations: a_i = omega_f x (omega_f x x_i);
     # a_j = a_i + a_ijn + 2|v_ijn|(omega_f x n_ij) + |l_ij| omega_f x (omega_f x n_ij)
     cof_n = np.cross(omega_f, n_ij)
-    a_i = np.cross(omega_f, np.cross(omega_f, x_i))
+    a_i = np.cross(omega_f, np.cross(omega_f, x_i)) - np.cross(omega_f, np.cross(omega_f, v_f)) * t[:, None]
     a_j = (a_i + a_ijn
            + 2 * np.linalg.norm(v_ijn, axis=1)[:, None] * cof_n
            + mag[:, None] * np.cross(omega_f, cof_n))

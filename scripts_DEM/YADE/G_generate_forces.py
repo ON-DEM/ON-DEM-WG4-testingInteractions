@@ -82,67 +82,20 @@ x_i       = as_np('x_i')              # expected shape (N,3)
 x_j       = as_np('x_j')              # expected shape (N,3)
 v_i       = as_np('v_i')              # expected shape (N,3)
 v_j       = as_np('v_j')              # expected shape (N,3)
+v_i_half  = as_np('v_i_half')		  # expected shape (N,3)
+v_j_half  = as_np('v_j_half')		  # expected shape (N,3)
 a_i       = as_np('a_i')              # expected shape (N,3)
 a_j       = as_np('a_j')              # expected shape (N,3)
 q_i       = as_np('q_i')              # expected shape (N,4) qx,qy,qz,qw
 q_j       = as_np('q_j')              # expected shape (N,4)
 omega_i   = as_np('omega_i')  		  # expected shape (N,3)
 omega_j   = as_np('omega_j')  		  # expected shape (N,3)
+omega_i_half = as_np('omega_i_half')  # expected shape (N,3)
+omega_j_half = as_np('omega_j_half')  # expected shape (N,3)
 F_i       = as_np('F_i')              # analytical forces if present (N,3)
 F_j       = as_np('F_j')              # analytical forces if present (N,3)
 T_i       = as_np('T_i')              # analytical torques if present (N,3)
 T_j       = as_np('T_j')              # analytical torques if present (N,3)
-
-# --- On-step <-> half-step velocity conversion (leapfrog consistency) ---
-# The analytical solution stores ON-step velocities v(t_k).
-# YADE's NewtonIntegrator is a leapfrog scheme whose state.vel lives at the
-# HALF-steps v(t_k +/- dt/2). To keep imposition and measurement mutually
-# consistent we convert between the two using the kinematic leapfrog relations
-# below. They involve velocities only (no acceleration), so the identical code
-# serves both linear and angular velocity:
-#
-#   on  -> half : v_half(t_k + dt/2) = 1/2 [ v(t_k) + v(t_{k+1}) ]   (forward average)
-#   half -> on  : v(t_k)             = 1/2 [ v_half(t_k - dt/2) + v_half(t_k + dt/2) ]
-#
-# imposeKinematics() imposes the forward half-step; saveKinematics() inverts it
-# with the trailing average (previous + current half-step). The round trip is
-# centred on t_k with O(dt^2) error, and the measurement still returns the correct
-# on-step velocity when forces (rather than velocities) are imposed instead.
-# def on_to_half(v_on):
-#     """Forward leapfrog average of an (N,3) on-step series -> half-step series at t_k + dt/2.
-#     The final sample has no successor, so it is left at its on-step value."""
-#     v_on = np.asarray(v_on, float)
-#     v_half = v_on.copy()
-#     v_half[:-1] = 0.5 * (v_on[:-1] + v_on[1:])
-#     return v_half
-def on_to_half(v_on):
-    """Trailing leapfrog half-step v(t_k - dt/2) = 0.5*[v(t_{k-1}) + v(t_k)].
-    This is the velocity YADE's leapfrog presents to the contact law at
-    force-evaluation time (the half-step left over from the previous Newton
-    update), so the incremental displacement covers [t_{k-1}, t_k] and the
-    accumulated elastic force matches the analytical integral up to t_k.
-    The first sample has no predecessor and is left at its on-step value."""
-    v_on = np.asarray(v_on, float)
-    v_half = v_on.copy()
-    v_half[1:] = 0.5 * (v_on[:-1] + v_on[1:])   # was v_half[:-1] = 0.5*(v_on[:-1]+v_on[1:])
-    return v_half
-
-# Half-step velocities/angular velocities to impose.
-# Prefer the EXACT analytical half-steps v(t_k - dt/2) produced by A_analytical_motion.py
-# (keys v_i_half, v_j_half, omega_i_half, omega_j_half). These are evaluated in closed form
-# at the half-step times, so they carry no reconstruction error. Only if an older JSON
-# without these keys is loaded do we fall back to reconstructing them from the on-step
-# arrays via on_to_half() (trailing average, O(dt^2) error).
-def _half(name, on_step):
-    exact = as_np(name)
-    if exact is not None:
-        return exact
-    return None if on_step is None else on_to_half(on_step)
-
-v_i_half     = _half('v_i_half',     v_i)
-v_j_half     = _half('v_j_half',     v_j)
-omega_i_half = _half('omega_i_half', omega_i)
-omega_j_half = _half('omega_j_half', omega_j)
 
 # --- Initialize simulation scene ---
 # Add Maxwell material
@@ -291,15 +244,15 @@ def saveForcesTorques():
 
 # --- Engines ---
 # Engine order matters for temporal consistency:
-#   1. (iff checking) saveKinematics  – snapshot pos/ori/vel at time t, BEFORE imposeKinematics
-#   2. imposeKinematics     – set prescribed pos/ori (on-step) and vel (half-step) for this step
+#   1. (iff checking) saveKinematics – snapshot pos/ori/vel at time t, BEFORE imposeKinematics
+#   2. imposeKinematics – set prescribed pos/ori (on-step) and vel (lagging half-step) for this step
 #   3. (iff measuring) saveKinematics  – snapshot the freshly-imposed pos/ori/half-step vel
 #   4. InteractionLoop – compute contact forces from the newly imposed geometry
-#   5. imposeForcesTorques  – set prescribed froces/torques (on-step) for this step
+#   5. imposeForcesTorques – set prescribed froces/torques (on-step) for this step
 #   6. (iff measuring) saveForcesTorques – snapshot forces/torques and commit the full record
 #   7. NewtonIntegrator – advance the simulation by dt
 O.dt = dt[0]
-O.engines = [
+O.engines = [										# t, x(t), v(t-dt/2), a(t-dt), F(t-dt), T(t-dt)
 	ForceResetter(),
 	PyRunner(command='imposeKinematics()',  initRun=True, iterPeriod=1),
 	PyRunner(command='saveKinematics()',    initRun=True, iterPeriod=1),
@@ -314,10 +267,10 @@ O.engines = [
 			kb=MatchMaker(algo='val', val=kb), etab=MatchMaker(algo='val', val=etab), mub=MatchMaker(algo='val', val=mub)
 		)],
 		[Law2_ScGeom_MaxwellPhys_general(limitViscousPart=True,preserveHistory=True)]
-	),
+	), 												# t, x(t), v(t-dt/2), a(t-dt), F(t), T(t)
 # 	PyRunner(command='imposeForcesTorques()', initRun=True, iterPeriod=1),
 	PyRunner(command='saveForcesTorques()', initRun=True, iterPeriod=1),
-	NewtonIntegrator(gravity=(0, 0, 0), damping=0)
+	NewtonIntegrator(gravity=(0, 0, 0), damping=0) 	# t+dt, x(t+dt), v(t+dt/2), a(t), F(t), T(t)
 ]
 
 # --- Set up plotting ---

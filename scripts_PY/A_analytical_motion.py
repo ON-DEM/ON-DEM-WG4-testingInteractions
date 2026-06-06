@@ -333,7 +333,7 @@ def my_analytical_motion(
             dtheta_b[idx] = dtheta_vec_i[idx] - dtheta_vec_j[idx] - dtheta_t[idx]
     
     # Exact analytical half-step velocities.
-    # YADE's leapfrog integrator stores velocities at the half-steps v(t_k - dt/2)
+    # Many codes' leapfrog integrator stores velocities at the half-steps v(t_k - dt/2)
     # (the value left over from the previous Newton update, used by the contact law
     # at force-evaluation time t_k). Rather than reconstructing these from the on-step
     # arrays by averaging (which costs O(dt^2) accuracy), we evaluate the closed-form

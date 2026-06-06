@@ -108,19 +108,41 @@ T_j       = as_np('T_j')              # analytical torques if present (N,3)
 # with the trailing average (previous + current half-step). The round trip is
 # centred on t_k with O(dt^2) error, and the measurement still returns the correct
 # on-step velocity when forces (rather than velocities) are imposed instead.
+# def on_to_half(v_on):
+#     """Forward leapfrog average of an (N,3) on-step series -> half-step series at t_k + dt/2.
+#     The final sample has no successor, so it is left at its on-step value."""
+#     v_on = np.asarray(v_on, float)
+#     v_half = v_on.copy()
+#     v_half[:-1] = 0.5 * (v_on[:-1] + v_on[1:])
+#     return v_half
 def on_to_half(v_on):
-    """Forward leapfrog average of an (N,3) on-step series -> half-step series at t_k + dt/2.
-    The final sample has no successor, so it is left at its on-step value."""
+    """Trailing leapfrog half-step v(t_k - dt/2) = 0.5*[v(t_{k-1}) + v(t_k)].
+    This is the velocity YADE's leapfrog presents to the contact law at
+    force-evaluation time (the half-step left over from the previous Newton
+    update), so the incremental displacement covers [t_{k-1}, t_k] and the
+    accumulated elastic force matches the analytical integral up to t_k.
+    The first sample has no predecessor and is left at its on-step value."""
     v_on = np.asarray(v_on, float)
     v_half = v_on.copy()
-    v_half[:-1] = 0.5 * (v_on[:-1] + v_on[1:])
+    v_half[1:] = 0.5 * (v_on[:-1] + v_on[1:])   # was v_half[:-1] = 0.5*(v_on[:-1]+v_on[1:])
     return v_half
 
-# Half-step velocities/angular velocities to impose (computed once from the on-step arrays).
-v_i_half     = None if v_i     is None else on_to_half(v_i)
-v_j_half     = None if v_j     is None else on_to_half(v_j)
-omega_i_half = None if omega_i is None else on_to_half(omega_i)
-omega_j_half = None if omega_j is None else on_to_half(omega_j)
+# Half-step velocities/angular velocities to impose.
+# Prefer the EXACT analytical half-steps v(t_k - dt/2) produced by A_analytical_motion.py
+# (keys v_i_half, v_j_half, omega_i_half, omega_j_half). These are evaluated in closed form
+# at the half-step times, so they carry no reconstruction error. Only if an older JSON
+# without these keys is loaded do we fall back to reconstructing them from the on-step
+# arrays via on_to_half() (trailing average, O(dt^2) error).
+def _half(name, on_step):
+    exact = as_np(name)
+    if exact is not None:
+        return exact
+    return None if on_step is None else on_to_half(on_step)
+
+v_i_half     = _half('v_i_half',     v_i)
+v_j_half     = _half('v_j_half',     v_j)
+omega_i_half = _half('omega_i_half', omega_i)
+omega_j_half = _half('omega_j_half', omega_j)
 
 # --- Initialize simulation scene ---
 # Add Maxwell material
@@ -279,11 +301,11 @@ def saveForcesTorques():
 O.dt = dt[0]
 O.engines = [
 	ForceResetter(),
-	InsertionSortCollider([Bo1_Sphere_Aabb()],verletDist=0.5*(R_i+R_j)),
 	PyRunner(command='imposeKinematics()',  initRun=True, iterPeriod=1),
 	PyRunner(command='saveKinematics()',    initRun=True, iterPeriod=1),
+	InsertionSortCollider([Bo1_Sphere_Aabb()],verletDist=0.5*(R_i+R_j)),
 	InteractionLoop(
-		[Ig2_Sphere_Sphere_ScGeom6D(avoidGranularRatcheting=True,exactRotations=False)],
+		[Ig2_Sphere_Sphere_ScGeom6D(avoidGranularRatcheting=True,exactRotations=True)],
 		[Ip2_MaxwellMat_MaxwellMat_MaxwellPhys(
 			kn=MatchMaker(algo='val', val=kn), etan=MatchMaker(algo='val', val=etan), 
 			ks=MatchMaker(algo='val', val=ks), etas=MatchMaker(algo='val', val=etas), frictAngle=MatchMaker(algo='val', val=atan(mus)),

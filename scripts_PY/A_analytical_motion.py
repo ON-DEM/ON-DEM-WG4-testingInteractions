@@ -48,9 +48,11 @@ def my_analytical_motion(
       t: (N,1)
       x_i,x_j: (N,3)
       v_i,v_j: (N,3)
+      v_i_half,v_j_half: (N,3)   exact half-step linear velocities v(t_k - dt/2)
       a_i,a_j: (N,3)
       q_i,q_j: (N,4)
       omega_i,omega_j: (N,3)
+      omega_i_half,omega_j_half: (N,3)  exact half-step angular velocities omega(t_k - dt/2)
       n_ij,v_ijn,a_ijn,l_ij: (N,3)
       omega_f: (3,)
       v_s,v_r,omega_t,omega_b: (N,3)
@@ -139,6 +141,58 @@ def my_analytical_motion(
     zero_k_s = np.isclose(k_s, 0)
     zero_w_s = np.isclose(w_s, 0)
 
+    def _branch_mag(ti):
+        """Analytical branch-vector magnitude |l_ij|(t) (Eq. 24)."""
+        if zero_k and zero_w:
+            return norm_l0 + A * ti - B * ti * np.sin(phi)
+        elif zero_k:
+            return norm_l0 + A * ti - (B / w) * (np.cos(phi) - np.cos(w * ti + phi))
+        elif zero_w:
+            return norm_l0 + A * ti - (B / k) * np.sin(phi) * (np.exp(k * ti) - 1.0)
+        else:
+            return (norm_l0
+                    + A * ti
+                    - (B / denom)
+                    * (
+                        ( k * np.sin(w * ti + phi) - w * np.cos(w * ti + phi) )
+                        * np.exp(k * ti)
+                        - ( k * np.sin(phi) - w * np.cos(phi) )
+                    ))
+
+    def _velocities_at(ti):
+        """Exact analytical linear/angular velocities at an arbitrary time ti.
+
+        Returns (v_i, v_j, omega_i, omega_j) as (3,) arrays. This evaluates the
+        same closed-form expressions used on-step in the main loop, so it can be
+        called at the half-step times t - dt/2 to obtain the exact half-step
+        velocities (including the value at t = -dt/2 for idx 0)."""
+        Rb = Rotation.from_rotvec(omega_f * ti)
+        n = Rb.apply(n0)                                            # contact normal (Eq. 5)
+        mag = _branch_mag(ti)                                       # |l_ij| (Eq. 24)
+        l = mag * n                                                 # branch vector (Eq. 6)
+        v_ijn_loc = (A - B * np.sin(w * ti + phi) * np.exp(k * ti)) * n  # (Eq. 23)
+        xi = Rb.apply(x_f) + v_f * ti                              # x_i (Eq. 1)
+
+        # Linear velocities (Eq. 3 and 4)
+        vi = v_f + np.cross(omega_f, xi)
+        vj = vi + np.cross(omega_f, l) + v_ijn_loc
+
+        # Angular velocities (Eq. 23)
+        omegar_t = A_t - B_t * np.sin(w_t * ti + phi_t) * np.exp(k_t * ti)
+        omegar_r = A_r - B_r * np.sin(w_r * ti + phi_r) * np.exp(k_r * ti)
+        omegar_s = A_s - B_s * np.sin(w_s * ti + phi_s) * np.exp(k_s * ti)
+        nrr = Rb.apply(n_r)
+        nrs = Rb.apply(n_s)
+        wi = (omega_f
+              + 0.5 * omegar_t * n
+              + 0.5/R_i * omegar_r * nrr
+              + 0.5/R_i * omegar_s * nrs)
+        wj = (omega_f
+              - 0.5 * omegar_t * n
+              - 0.5/R_j * omegar_r * nrr
+              + 0.5/R_j * omegar_s * nrs)
+        return vi, vj, wi, wj
+
     for idx, ti in enumerate(t):
         # Body rotation, this works because omega_f is constant.
         Rb = Rotation.from_rotvec(omega_f * ti)
@@ -153,22 +207,7 @@ def my_analytical_motion(
         a_ijn[idx] = -B * np.exp(k * ti) * (w * np.cos(w * ti + phi) + k * np.sin(w * ti + phi)) * n_ij[idx]
 
         # Compute branch magnitude (Eq. 24)
-        if zero_k and zero_w:
-            mag = norm_l0 + A * ti - B * ti * np.sin(phi)
-        elif zero_k:
-            mag = norm_l0 + A * ti - (B / w) * (np.cos(phi) - np.cos(w * ti + phi))
-        elif zero_w:
-            mag = norm_l0 + A * ti - (B / k) * np.sin(phi) * (np.exp(k * ti) - 1.0)
-        else:
-            mag = (norm_l0
-                   + A * ti
-                   - (B / denom) 
-                   * (
-                       ( k * np.sin(w * ti + phi) - w * np.cos(w * ti + phi) ) 
-                       * np.exp(k * ti)
-                       - ( k * np.sin(phi) - w * np.cos(phi) )
-                   )
-                  )
+        mag = _branch_mag(ti)
         # Branch vector (Eq. 6)
         l_ij[idx] = mag * n_ij[idx]
         
@@ -293,6 +332,19 @@ def my_analytical_motion(
             # For bending
             dtheta_b[idx] = dtheta_vec_i[idx] - dtheta_vec_j[idx] - dtheta_t[idx]
     
+    # Exact analytical half-step velocities.
+    # YADE's leapfrog integrator stores velocities at the half-steps v(t_k - dt/2)
+    # (the value left over from the previous Newton update, used by the contact law
+    # at force-evaluation time t_k). Rather than reconstructing these from the on-step
+    # arrays by averaging (which costs O(dt^2) accuracy), we evaluate the closed-form
+    # velocity expressions directly at t_k - dt/2. Entry idx therefore holds
+    # v(t_k - dt/2); for idx 0 this is the exact value at t = -dt/2.
+    v_i_half = np.zeros((N,3)); v_j_half = np.zeros((N,3))
+    omega_i_half = np.zeros((N,3)); omega_j_half = np.zeros((N,3))
+    for idx, ti in enumerate(t):
+        t_half = ti - dt/2
+        v_i_half[idx], v_j_half[idx], omega_i_half[idx], omega_j_half[idx] = _velocities_at(t_half)
+
     # Compute normal overlap (Eq. 12)
     l_mag = np.linalg.norm(l_ij, axis=1)
     u_n = (R_i + R_j - l_mag).reshape(-1,1) # Surface-to-surface across entire contact
@@ -307,9 +359,11 @@ def my_analytical_motion(
         't': t.reshape(-1,1),'dt':[dt]*len(t),
         'x_i': x_i, 'x_j': x_j,
         'v_i': v_i, 'v_j': v_j,
+        'v_i_half': v_i_half, 'v_j_half': v_j_half,
         'a_i': a_i, 'a_j': a_j,
         'q_i': q_i, 'q_j': q_j,
         'omega_i': omega_i, 'omega_j': omega_j, 'omega_f': [omega_f]*len(t),
+        'omega_i_half': omega_i_half, 'omega_j_half': omega_j_half,
         'n_ij': n_ij, 'v_ijn': v_ijn, 'a_ijn': a_ijn, 'l_ij': l_ij,
         'u_n': u_n, 'v_s': v_s, 'v_r': v_r, 'omega_t': omega_t, 'omega_b': omega_b,
         'du_s': du_s, 'du_r': du_r, 'dtheta_t': dtheta_t, 'dtheta_b': dtheta_b

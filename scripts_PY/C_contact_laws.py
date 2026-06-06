@@ -1,8 +1,84 @@
 # Copyright 2025: Danny van der Haven, dlhv2@cantab.ac.uk
 
 import numpy as np
+import math
 
 MIN_ANGLE_MAG = 1e-14
+
+#
+#   SHARED HELPERS FOR THE FRICTIONAL (RETURN-MAPPING) LAWS
+#
+# The shear/rolling/twisting/bending laws are all the same incremental,
+# co-rotational elasto-plastic recurrence: rotate the stored elastic force into the
+# current contact frame, add the elastic increment, apply the Coulomb cap, then add
+# the (optionally capped) viscous part. The recurrence is inherently sequential
+# (the Coulomb cap is a nonlinear function of the running state), but two things are
+# hoisted out of the loop for speed:
+#   (1) the co-rotation matrix R(omega_f*dt) is constant here (omega_f and dt are
+#       per-step constant), so it is built once instead of every iteration; and
+#   (2) all elementwise work (the elastic increment, the viscous force, and the
+#       Coulomb cap) is precomputed as arrays, and the per-step math is written with
+#       plain scalars to avoid NumPy's large per-call overhead on length-3 vectors.
+
+def _rodrigues_matrix(omega):
+    """Rotation matrix for the rotation vector omega (axis*angle); identity for a
+    negligible angle. Matches the inline Rodrigues construction used previously."""
+    theta = math.sqrt(omega[0]*omega[0] + omega[1]*omega[1] + omega[2]*omega[2])
+    if theta <= MIN_ANGLE_MAG:
+        return np.eye(3)
+    ax, ay, az = omega[0]/theta, omega[1]/theta, omega[2]/theta
+    K = np.array([[0.0, -az, ay],
+                  [az, 0.0, -ax],
+                  [-ay, ax, 0.0]])
+    return np.eye(3) + math.sin(theta) * K + (1.0 - math.cos(theta)) * (K @ K)
+
+def _return_map(mask, R, dinc, vinc, Fmax, clip_viscous=True):
+    """Sequential co-rotational return mapping shared by the frictional laws.
+
+    Parameters
+    ----------
+    mask : (N,) bool        True where contact is lost (force and history reset to 0).
+    R    : (3,3)            Constant co-rotation matrix R(omega_f*dt).
+    dinc : (N,3)            Elastic increment subtracted each step (e.g. k_s*du_s, or
+                            cross(rollArm, k_r*du_r) for rolling).
+    vinc : (N,3)            Viscous force subtracted each step (e.g. eta_s*v_s).
+    Fmax : (N,)             Coulomb cap magnitude per step.
+    clip_viscous : bool     Whether the Coulomb cap is re-applied after the viscous
+                            part (True for the standard laws, False for the *_ext
+                            variant where the dashpot is excluded from the cap).
+
+    Returns the (N,3) force/torque series. The elastic component carried to the next
+    step is stored *after* the elastic cap but *before* the viscous part is added.
+    """
+    N = dinc.shape[0]
+    out = np.zeros((N, 3))
+    r00, r01, r02, r10, r11, r12, r20, r21, r22 = R.ravel()
+    ox = oy = oz = 0.0   # stored elastic component (history)
+    for i in range(N):
+        if mask[i]:
+            ox = oy = oz = 0.0
+            continue                       # out[i] stays zero: contact lost
+        # Rotate the stored elastic component into the current contact frame
+        rx = r00*ox + r01*oy + r02*oz
+        ry = r10*ox + r11*oy + r12*oz
+        rz = r20*ox + r21*oy + r22*oz
+        # Add the elastic increment
+        rx -= dinc[i, 0]; ry -= dinc[i, 1]; rz -= dinc[i, 2]
+        # Coulomb cap on the elastic component
+        fmax = Fmax[i]
+        mag = math.sqrt(rx*rx + ry*ry + rz*rz)
+        if mag > fmax:
+            s = fmax / mag; rx *= s; ry *= s; rz *= s
+        # Store the elastic component for the next step (before the viscous part)
+        ox, oy, oz = rx, ry, rz
+        # Add the viscous part, optionally re-capping the total
+        rx -= vinc[i, 0]; ry -= vinc[i, 1]; rz -= vinc[i, 2]
+        if clip_viscous:
+            mag = math.sqrt(rx*rx + ry*ry + rz*rz)
+            if mag > fmax:
+                s = fmax / mag; rx *= s; ry *= s; rz *= s
+        out[i, 0] = rx; out[i, 1] = ry; out[i, 2] = rz
+    return out
 
 #
 #   NORMAL FORCE LAWS
@@ -30,7 +106,7 @@ def Fn_spring_dashpot(contact_params, motions):
     Fn_mag[active] = k_n * u_n[active] + eta_n * v_n[active]
     Fn_mag = np.maximum(Fn_mag, 0) # No adhesion in this model
     # This clipping should be applied to the total force, not the viscous component only, 
-    # because the internal viscous forces can indeed be tensile, they just can transmit over a gap.
+    # because the internal viscous forces can indeed be tensile, they just can't transmit over a gap.
 
     # Apply contact model
     Fn = - Fn_mag[:, None] * n_ij
@@ -98,63 +174,17 @@ def Fs_spring_dashpot_Coulomb(contact_params, motions, Fn):
     omega_f = np.asarray(motions['omega_f'], dtype=float)   # (N,3)
     dt      = np.array(motions['dt'], dtype=float)          # (1)
 
-    # Test for contact
+    # Test for contact (force and history reset where there is none)
     mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
 
     # Normal force magnitudes
     Fn_mag = np.linalg.norm(Fn, axis=1)
 
-    # Accumulate shear force
-    N, dim = du_s.shape
-    Fs = np.zeros((N,dim))
-    Fs[0] = 0
-    Fs_tmp = np.zeros(3)
-    Fs_old = np.zeros(3)
-    for i in range(N):
-        # Shear force and displacement are lost if contact is lost
-        if mask[i]:
-            Fs[i] = 0.0
-            Fs_old = np.zeros(3)
-        else:
-            # Retrieve elastic component previous shear force
-            Fs_tmp = Fs_old
-
-            # Small-angle rotation update inside the loop
-            omega = omega_f[i]*dt[i]
-            theta = np.linalg.norm(omega)
-            if theta > MIN_ANGLE_MAG: # Bad magic number
-                axis = omega / theta
-                # Rodrigues’ rotation formula for rotation matrix
-                K = np.array([
-                    [0, -axis[2], axis[1]],
-                    [axis[2], 0, -axis[0]],
-                    [-axis[1], axis[0], 0]
-                ])
-                R = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
-                Fs_tmp = R @ Fs_tmp
-
-            # Integrate increment
-            Fs_tmp -= k_s * du_s[i]
-            # Apply Coulomb limit
-            Fs_mag = np.linalg.norm(Fs_tmp)
-            Fs_max = mu_s * Fn_mag[i]
-            if Fs_mag > Fs_max:
-                Fs_tmp *= (Fs_max / Fs_mag)
-            
-            # Save elastic component for next time step
-            Fs_old = Fs_tmp.copy() # copy to avoid aliasing
-
-            # Add viscous component
-            Fs_tmp -= eta_s * v_s[i]
-            # Apply Coulomb limit, again (this is a modelling choice!)
-            Fs_mag = np.linalg.norm(Fs_tmp)
-            if Fs_mag > Fs_max:
-                Fs_tmp *= (Fs_max / Fs_mag)
-
-            # Save total shear force
-            Fs[i] = Fs_tmp.copy() # copy to avoid aliasing
-
-    return Fs
+    # Hoist the constant co-rotation matrix and precompute the per-step elastic
+    # increment, viscous force, and Coulomb cap; the sequential return mapping (history
+    # + Coulomb cap) is delegated to _return_map (see top of file).
+    R = _rodrigues_matrix(omega_f[0] * dt[0])
+    return _return_map(mask, R, k_s * du_s, eta_s * v_s, mu_s * Fn_mag, clip_viscous=True)
 
 def Fs_spring_dashpot_Coulomb_ext(contact_params, motions, Fn):
     """
@@ -172,60 +202,16 @@ def Fs_spring_dashpot_Coulomb_ext(contact_params, motions, Fn):
     omega_f = np.asarray(motions['omega_f'], dtype=float)   # (N,3)
     dt      = np.array(motions['dt'], dtype=float)          # (1)
 
-    # Test for contact
+    # Test for contact (force and history reset where there is none)
     mask = (u_n.ravel() == 0.0) # This is ok because we set to 0.0 exactly
 
     # Normal force magnitudes
     Fn_mag = np.linalg.norm(Fn, axis=1)
 
-    # Accumulate shear force
-    N, dim = du_s.shape
-    Fs = np.zeros((N,dim))
-    Fs[0] = 0
-    Fs_tmp = np.zeros(3)
-    Fs_old = np.zeros(3)
-    for i in range(N):
-        # Shear force and displacement is lost if contact is lost
-        if mask[i]:
-            Fs[i] = 0.0
-            Fs_old = np.zeros(3)
-        else:
-            # Retrieve elastic component previous shear force
-            Fs_tmp = Fs_old
-
-            # Small-angle rotation update inside the loop
-            omega = omega_f[i]*dt[i]
-            theta = np.linalg.norm(omega)
-            if theta > MIN_ANGLE_MAG:
-                axis = omega / theta
-                # Rodrigues’ rotation formula for rotation matrix
-                K = np.array([
-                    [0, -axis[2], axis[1]],
-                    [axis[2], 0, -axis[0]],
-                    [-axis[1], axis[0], 0]
-                ])
-                R = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
-                Fs_tmp = R @ Fs_tmp
-
-            # Integrate increment
-            Fs_tmp -= k_s * du_s[i]
-            # Apply Coulomb limit
-            Fs_mag = np.linalg.norm(Fs_tmp)
-            Fs_max = mu_s * Fn_mag[i]
-            if Fs_mag > Fs_max:
-                Fs_tmp *= (Fs_max / Fs_mag)
-
-            # Save elastic component for next time step
-            Fs_old = Fs_tmp.copy()
-
-            # Add viscous component
-            Fs_tmp -= eta_s * v_s[i]
-            # No limit on viscous contribution (this is a modelling choice!)
-
-            # Save total shear force
-            Fs[i] = Fs_tmp.copy() # copy to avoid aliasing
-
-    return Fs
+    # Same return mapping as Fs_spring_dashpot_Coulomb, but the viscous dashpot is
+    # excluded from the Coulomb cap (clip_viscous=False).
+    R = _rodrigues_matrix(omega_f[0] * dt[0])
+    return _return_map(mask, R, k_s * du_s, eta_s * v_s, mu_s * Fn_mag, clip_viscous=False)
 
 #
 #   ROLLING TORQUE LAWS
@@ -260,57 +246,14 @@ def Tr_spring_dashpot_Coulomb(contact_params, motions, Fn):
     # Roll arm
     rollArm = R_eff * n_ij
 
-    # Accumulate rolling force
-    N, dim = du_r.shape
-    Tr = np.zeros((N,dim))
-    Tr[0] = 0
-    Tr_tmp = np.zeros(3)
-    Tr_old = np.zeros(3)
-    for i in range(N):
-        # Rolling force is lost if contact is lost
-        if mask[i]:
-            Tr[i] = 0.0
-            Tr_old = np.zeros(3)
-        else:
-            # Retrieve elastic component previous rolling force
-            Tr_tmp = Tr_old
-
-            # Small-angle rotation update inside the loop
-            omega = omega_f[i]*dt[i]
-            theta = np.linalg.norm(omega)
-            if theta > MIN_ANGLE_MAG:
-                axis = omega / theta
-                # Rodrigues' rotation formula for rotation matrix
-                K = np.array([
-                    [0, -axis[2], axis[1]],
-                    [axis[2], 0, -axis[0]],
-                    [-axis[1], axis[0], 0]
-                ])
-                R = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
-                Tr_tmp = R @ Tr_tmp
-
-            # Integrate increment
-            Tr_tmp -= np.cross(rollArm[i], k_r * du_r[i])
-            # Apply Coulomb limit
-            Tr_mag = np.linalg.norm(Tr_tmp)
-            Tr_max = mu_r * R_eff * Fn_mag[i]
-            if Tr_mag > Tr_max:
-                Tr_tmp *= (Tr_max / Tr_mag)
-
-            # Save elastic component for next time step
-            Tr_old = Tr_tmp.copy() # copy to avoid aliasing
-
-            # Add viscous component
-            Tr_tmp -= np.cross(rollArm[i], eta_r * v_r[i])
-            # Apply Coulomb limit, again (this is a modelling choice!)
-            Tr_mag = np.linalg.norm(Tr_tmp)
-            if Tr_mag > Tr_max:
-                Tr_tmp *= (Tr_max / Tr_mag)
-
-            # Save total rolling force
-            Tr[i] = Tr_tmp.copy() # copy to avoid aliasing
-
-    return Tr
+    # The rolling torque increments are the moments of the rolling-spring/dashpot
+    # forces about the roll arm; precompute them (vectorised cross products) and the
+    # Coulomb cap, then run the shared sequential return mapping.
+    R = _rodrigues_matrix(omega_f[0] * dt[0])
+    dinc = np.cross(rollArm, k_r * du_r)
+    vinc = np.cross(rollArm, eta_r * v_r)
+    Fmax = mu_r * R_eff * Fn_mag
+    return _return_map(mask, R, dinc, vinc, Fmax, clip_viscous=True)
 
 
 #
@@ -343,58 +286,12 @@ def Tt_spring_dashpot_Coulomb(contact_params, motions, Fn):
     # Normal force magnitudes
     Fn_mag = np.linalg.norm(Fn, axis=1)
 
-    # Accumulate twisting torque
-    N = len(u_n)
-    Tt = np.zeros((N,3))
-    Tt[0] = 0
-    Tt_tmp = np.zeros(3)
-    Tt_old = np.zeros(3)
-    for i in range(N):
-        # Twisting torque is lost if contact is lost
-        if mask[i]:
-            Tt[i] = 0.0
-            Tt_old = np.zeros(3)
-        else:
-            # Retrieve elastic component previous twisting torque
-            Tt_tmp = Tt_old
-            
-            # Small-angle rotation update inside the loop
-            omega = omega_f[i]*dt[i]
-            theta = np.linalg.norm(omega)
-            if theta > MIN_ANGLE_MAG:
-                axis = omega / theta
-                # Rodrigues' rotation formula for rotation matrix
-                K = np.array([
-                    [0, -axis[2], axis[1]],
-                    [axis[2], 0, -axis[0]],
-                    [-axis[1], axis[0], 0]
-                ])
-                R = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
-                Tt_tmp = R @ Tt_tmp
-
-            # Integrate increment
-            Tt_tmp -= k_t * dtheta_t[i]
-            
-            # Apply Coulomb limit
-            Tt_mag = np.linalg.norm(Tt_tmp)
-            Tt_max = mu_t * R_eff * Fn_mag[i]
-            if Tt_mag > Tt_max:
-                Tt_tmp *= (Tt_max / Tt_mag)
-
-            # Save elastic component for next time step
-            Tt_old = Tt_tmp.copy() # copy to avoid aliasing
-
-            # Add viscous component
-            Tt_tmp -= eta_t * omega_t[i]
-            # Apply Coulomb limit, again (this is a modelling choice!)
-            Tt_mag = np.linalg.norm(Tt_tmp)
-            if Tt_mag > Tt_max:
-                Tt_tmp *= (Tt_max / Tt_mag)
-
-            # Save total twisting torque
-            Tt[i] = Tt_tmp.copy() # copy to avoid aliasing
-
-    return Tt
+    # Precompute the elastic increment (k_t*dtheta_t), viscous torque (eta_t*omega_t),
+    # and Coulomb cap, then run the shared sequential return mapping. Twisting acts
+    # directly along the contact normal, so no lever-arm cross product is needed.
+    R = _rodrigues_matrix(omega_f[0] * dt[0])
+    Fmax = mu_t * R_eff * Fn_mag
+    return _return_map(mask, R, k_t * dtheta_t, eta_t * omega_t, Fmax, clip_viscous=True)
 
 #
 #   BENDING TORQUE LAWS
@@ -426,58 +323,11 @@ def Tb_spring_dashpot_Coulomb(contact_params, motions, Fn):
     # Normal force magnitudes
     Fn_mag = np.linalg.norm(Fn, axis=1)
 
-    # Accumulate twisting torque
-    N = len(u_n)
-    Tb = np.zeros((N,3))
-    Tb[0] = 0
-    Tb_tmp = np.zeros(3)
-    Tb_old = np.zeros(3)
-    for i in range(N):
-        # Bending torque is lost if contact is lost
-        if mask[i]:
-            Tb[i] = 0.0
-            Tb_old = np.zeros(3)
-        else:
-            # Retrieve elastic component previous bending torque
-            Tb_tmp = Tb_old
-            
-            # Small-angle rotation update inside the loop
-            omega = omega_f[i]*dt[i]
-            theta = np.linalg.norm(omega)
-            if theta > MIN_ANGLE_MAG:
-                axis = omega / theta
-                # Rodrigues' rotation formula for rotation matrix
-                K = np.array([
-                    [0, -axis[2], axis[1]],
-                    [axis[2], 0, -axis[0]],
-                    [-axis[1], axis[0], 0]
-                ])
-                R = np.eye(3) + np.sin(theta)*K + (1 - np.cos(theta))*(K @ K)
-                Tb_tmp = R @ Tb_tmp
-
-            # Integrate increment
-            Tb_tmp -= k_b * dtheta_b[i]
-            
-            # Apply Coulomb limit
-            Tb_mag = np.linalg.norm(Tb_tmp)
-            Tb_max = mu_b * R_eff * Fn_mag[i]
-            if Tb_mag > Tb_max:
-                Tb_tmp *= (Tb_max / Tb_mag)
-
-            # Save elastic component for next time step
-            Tb_old = Tb_tmp.copy() # copy to avoid aliasing
-
-            # Add viscous component
-            Tb_tmp -= eta_b * omega_b[i]
-            # Apply Coulomb limit, again (this is a modelling choice!)
-            Tb_mag = np.linalg.norm(Tb_tmp)
-            if Tb_mag > Tb_max:
-                Tb_tmp *= (Tb_max / Tb_mag)
-
-            # Save total bending torque
-            Tb[i] = Tb_tmp.copy() # copy to avoid aliasing
-
-    return Tb
+    # Precompute the elastic increment (k_b*dtheta_b), viscous torque (eta_b*omega_b),
+    # and Coulomb cap, then run the shared sequential return mapping.
+    R = _rodrigues_matrix(omega_f[0] * dt[0])
+    Fmax = mu_b * R_eff * Fn_mag
+    return _return_map(mask, R, k_b * dtheta_b, eta_b * omega_b, Fmax, clip_viscous=True)
 
 #
 #   Mixing rules for mechanical contact properties

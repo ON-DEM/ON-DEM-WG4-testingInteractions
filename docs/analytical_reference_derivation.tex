@@ -1,0 +1,414 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+% --- notation helpers -------------------------------------------------------
+\newcommand{\dd}{\,\mathrm{d}}
+\newcommand{\e}{\mathrm{e}}
+\newcommand{\Rb}{\mathbf{R}_b}
+\newcommand{\nf}{\hat{\mathbf{e}}}            % unit rotation axis of the frame
+\newcommand{\Om}{\Omega}
+\newcommand{\bw}{\boldsymbol{\omega}}
+\newcommand{\bwf}{\boldsymbol{\omega}_f}
+\newcommand{\norm}[1]{\lVert #1 \rVert}
+\newcommand{\Dt}{\Delta t}
+\DeclareMathOperator{\Oo}{\mathcal{O}}
+
+\title{\bfseries An exact-continuum analytical reference for DEM contact tests:\\
+closed-form contact increments and high-order orientation integration}
+\author{Notes accompanying \texttt{scripts\_PY/A\_analytical\_motion.py}}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The interaction-test suite compares a discrete-element (DEM) contact implementation
+against an \emph{analytical} reference trajectory. For the comparison to measure the
+DEM error, the reference itself must be as close to the exact continuous solution as
+possible. Two quantities drive everything downstream: the per-step contact
+\emph{increments} ($\mathrm{d}\theta_t,\ \mathrm{d}\mathbf{u}_r,\ \mathrm{d}\mathbf{u}_s,\
+\mathrm{d}\boldsymbol{\theta}_b$) consumed by the constitutive laws, and the particle
+\emph{orientations} $q_i,q_j$. This note derives, from first principles, (i) the
+closed-form evaluation of every increment as an exact integral over a rotating contact
+frame, and (ii) a fourth-order Magnus integrator for the orientation quaternion. We
+explain why the previous ``analytical-magnitude $\times$ end-of-step direction''
+construction was only first-order accurate whenever the contact frame rotates, and why
+the schemes here remove that error.
+\end{abstract}
+
+\tableofcontents
+
+% ===========================================================================
+\section{Setting and notation}
+\label{sec:setup}
+
+Two spheres $i,j$ are driven through a prescribed relative motion built from a rigidly
+rotating contact frame plus three superimposed relative modes (twist, roll, shear). The
+frame rotates at the constant angular velocity $\bwf$, so any material direction fixed in
+the frame is carried by the rotation operator
+\begin{equation}
+  \Rb(t) \;=\; \exp\!\big([\bwf]_\times\, t\big),
+  \qquad
+  [\bwf]_\times \;=\;
+  \begin{pmatrix} 0 & -\omega_{f,z} & \omega_{f,y}\\
+                  \omega_{f,z} & 0 & -\omega_{f,x}\\
+                 -\omega_{f,y} & \omega_{f,x} & 0 \end{pmatrix},
+\end{equation}
+a proper rotation about the unit axis $\nf=\bwf/\varphi_f$ through the angle $\varphi_f t$,
+where $\varphi_f=\norm{\bwf}$. Let $\mathbf{n}_0$ be the initial contact normal (unit
+branch direction) and $\mathbf{n}_{r0},\mathbf{n}_{s0}$ the roll and shear axes
+(orthogonal to $\mathbf{n}_0$). Their instantaneous values are
+\begin{equation}
+  \mathbf{n}(t)=\Rb(t)\,\mathbf{n}_0,\quad
+  \mathbf{n}_r(t)=\Rb(t)\,\mathbf{n}_{r0},\quad
+  \mathbf{n}_s(t)=\Rb(t)\,\mathbf{n}_{s0}.
+\end{equation}
+
+Every mode is modulated by a rate function of the same exponential--sinusoidal family,
+\begin{equation}
+  s(\tau)\;=\;A - B\,\sin(w\tau+\psi)\,\e^{k\tau},
+  \label{eq:rate}
+\end{equation}
+with mode-specific parameters $(A_X,B_X,w_X,\psi_X,k_X)$ for $X\in\{t,r,s\}$ (twist, roll,
+shear). The relative twist angular velocity, and the roll and shear sliding velocities of
+the contact point, are
+\begin{align}
+  \boldsymbol{\omega}_t(\tau) &= s_t(\tau)\,\mathbf{n}(\tau), \label{eq:wt}\\
+  \mathbf{v}_r(\tau) &= s_r(\tau)\,\big(\mathbf{n}_r(\tau)\times\mathbf{n}(\tau)\big), \label{eq:vr}\\
+  \mathbf{v}_s(\tau) &= s_s(\tau)\,\big(\mathbf{n}_s(\tau)\times\mathbf{n}(\tau)\big), \label{eq:vs}
+\end{align}
+and the per-particle angular velocities are
+\begin{equation}
+  \bw_i(\tau) = \bwf + \tfrac12 s_t \mathbf{n}
+              + \tfrac{1}{2R_i} s_r \mathbf{n}_r
+              + \tfrac{1}{2R_i} s_s \mathbf{n}_s,
+  \qquad
+  \bw_j(\tau) = \bwf - \tfrac12 s_t \mathbf{n}
+              - \tfrac{1}{2R_j} s_r \mathbf{n}_r
+              + \tfrac{1}{2R_j} s_s \mathbf{n}_s .
+  \label{eq:wij}
+\end{equation}
+
+The contact laws integrate these rates over each time step $[t_{k-1},t_k]$ of length
+$\Dt$. We must evaluate, exactly,
+\begin{equation}
+  \mathrm{d}\boldsymbol{\theta}_t = \!\int_{t_{k-1}}^{t_k}\!\!\boldsymbol{\omega}_t\dd\tau,\quad
+  \mathrm{d}\mathbf{u}_r = \!\int_{t_{k-1}}^{t_k}\!\!\mathbf{v}_r\dd\tau,\quad
+  \mathrm{d}\mathbf{u}_s = \!\int_{t_{k-1}}^{t_k}\!\!\mathbf{v}_s\dd\tau,\quad
+  \mathrm{d}\boldsymbol{\theta}_{i} = \!\int_{t_{k-1}}^{t_k}\!\!\bw_i\dd\tau,
+  \label{eq:increments}
+\end{equation}
+and likewise the bending increment
+$\mathrm{d}\boldsymbol{\theta}_b=\mathrm{d}\boldsymbol{\theta}_i-\mathrm{d}\boldsymbol{\theta}_j-\mathrm{d}\boldsymbol{\theta}_t$.
+The orientations follow from integrating the attitude equation
+$\dot{\mathbf{R}}_i=[\bw_i]_\times\mathbf{R}_i$ (Section~\ref{sec:orientation}).
+
+% ===========================================================================
+\section{Why the naive increment is only first order}
+\label{sec:naive}
+
+Each integrand in \eqref{eq:increments} is a scalar rate times a \emph{rotating} unit
+vector. The previous implementation integrated the scalar exactly but froze the direction
+at the end of the step. For the shear increment, for example,
+\begin{equation}
+  \mathrm{d}\mathbf{u}_s^{\,\mathrm{endpoint}}
+   = \underbrace{\Big(\!\int_{t_{k-1}}^{t_k}\! s_s\dd\tau\Big)}_{=\,M,\ \text{exact}}
+     \;\big(\mathbf{n}_s(t_k)\times\mathbf{n}(t_k)\big)
+   = M\,\Rb(t_k)\,\mathbf{d},
+   \qquad \mathbf{d}\equiv \mathbf{n}_{s0}\times\mathbf{n}_0 .
+\end{equation}
+The exact value is $\mathrm{d}\mathbf{u}_s=\int s_s(\tau)\,\Rb(\tau)\mathbf{d}\dd\tau$, so the
+error of the endpoint rule is
+\begin{equation}
+  \mathrm{d}\mathbf{u}_s^{\,\mathrm{endpoint}}-\mathrm{d}\mathbf{u}_s
+  = \int_{t_{k-1}}^{t_k}\! s_s(\tau)\,\big[\Rb(t_k)-\Rb(\tau)\big]\mathbf{d}\dd\tau .
+\end{equation}
+Because $\Rb(t_k)-\Rb(\tau)=[\bwf]_\times\Rb(\tau)\,(t_k-\tau)+\Oo\!\big((t_k-\tau)^2\big)$,
+the bracket is $\Oo(\varphi_f\Dt)$ across the step, and the integral is
+$\Oo(\varphi_f\,\Dt\cdot M)=\Oo(\varphi_f\,\Dt^2)$ \emph{per step}. Summed over the
+$\Oo(1/\Dt)$ steps of a simulation this is a \emph{global} error of $\Oo(\Dt)$: the
+endpoint rule is only \textbf{first-order accurate} whenever the frame rotates
+($\bwf\neq\mathbf 0$). The exactness of the scalar integral $M$ is a red herring -- the
+frozen direction sets the order. (A midpoint evaluation $s_s(t_m)\,\Dt\,\Rb(t_m)\mathbf{d}$
+would be $\Oo(\Dt^2)$ globally, better but still not exact.)
+
+The remedy is to integrate the rotating direction \emph{analytically} as well. As shown
+next, this is possible in closed form for the entire rate family \eqref{eq:rate}, so the
+increment error is eliminated to machine precision.
+
+% ===========================================================================
+\section{Exact closed-form increments}
+\label{sec:increments}
+
+\subsection{One canonical integral}
+
+A single structure underlies every increment in \eqref{eq:increments}. Because a proper
+rotation preserves cross products, $\,(\Rb\mathbf{a})\times(\Rb\mathbf{b})=\Rb(\mathbf{a}\times\mathbf{b})$,
+the roll/shear velocities reduce to one rotating vector,
+\begin{equation}
+  \mathbf{v}_s(\tau)=s_s(\tau)\,\Rb(\tau)\,(\mathbf{n}_{s0}\times\mathbf{n}_0),
+  \qquad
+  \mathbf{v}_r(\tau)=s_r(\tau)\,\Rb(\tau)\,(\mathbf{n}_{r0}\times\mathbf{n}_0),
+\end{equation}
+exactly the form of the twist rate \eqref{eq:wt}. Hence every increment is an instance of
+\begin{equation}
+  \boxed{\;\;
+  \mathbf{J}(\mathbf{d};s)\;=\;\int_{t_a}^{t_b} s(\tau)\,\Rb(\tau)\,\mathbf{d}\;\dd\tau
+  \;\;}
+  \label{eq:J}
+\end{equation}
+for a fixed seed $\mathbf{d}$ and rate $s$:
+\begin{equation}
+  \mathrm{d}\boldsymbol{\theta}_t=\mathbf{J}(\mathbf{n}_0;s_t),\quad
+  \mathrm{d}\mathbf{u}_r=\mathbf{J}(\mathbf{n}_{r0}\times\mathbf{n}_0;s_r),\quad
+  \mathrm{d}\mathbf{u}_s=\mathbf{J}(\mathbf{n}_{s0}\times\mathbf{n}_0;s_s),
+  \label{eq:incr-as-J}
+\end{equation}
+\begin{equation}
+  \mathrm{d}\boldsymbol{\theta}_i
+   = \bwf\,\Dt + \tfrac12\mathbf{J}(\mathbf{n}_0;s_t)
+   + \tfrac{1}{2R_i}\mathbf{J}(\mathbf{n}_{r0};s_r)
+   + \tfrac{1}{2R_i}\mathbf{J}(\mathbf{n}_{s0};s_s).
+  \label{eq:dthi-as-J}
+\end{equation}
+Note the subtlety that distinguishes a \emph{displacement} from a \emph{rotation rate}:
+the roll/shear displacements seed $\mathbf{J}$ with the cross product
+$\mathbf{n}_{X0}\times\mathbf{n}_0$ (their velocity is a moment), while the per-particle
+rotation rates seed it with the bare direction $\mathbf{n}_{X0}$.
+
+\subsection{Rodrigues decomposition of the rotating seed}
+
+Rodrigues' formula resolves $\Rb(\tau)\mathbf{d}$ into a part fixed along the axis and a
+part that circulates:
+\begin{equation}
+  \Rb(\tau)\,\mathbf{d}
+  = \mathbf{d}\cos(\varphi_f\tau)
+  + (\nf\times\mathbf{d})\sin(\varphi_f\tau)
+  + \nf(\nf\!\cdot\!\mathbf{d})\big(1-\cos(\varphi_f\tau)\big)
+  = \mathbf{a}\cos(\varphi_f\tau)+\mathbf{b}\sin(\varphi_f\tau)+\mathbf{c},
+\end{equation}
+with the three constant vectors
+\begin{equation}
+  \mathbf{c}=\nf(\nf\!\cdot\!\mathbf{d}) \ \ (\text{axial}),\qquad
+  \mathbf{a}=\mathbf{d}-\mathbf{c}\ \ (\perp,\ \cos\text{-part}),\qquad
+  \mathbf{b}=\nf\times\mathbf{d}\ \ (\perp,\ \sin\text{-part}).
+\end{equation}
+Substituting into \eqref{eq:J} factors the vector and scalar parts completely:
+\begin{equation}
+  \mathbf{J}(\mathbf{d};s) = \mathbf{a}\,C + \mathbf{b}\,S + \mathbf{c}\,M,
+  \qquad
+  \begin{aligned}
+    M &= \int_{t_a}^{t_b}\! s(\tau)\dd\tau,\\
+    C &= \int_{t_a}^{t_b}\! s(\tau)\cos(\varphi_f\tau)\dd\tau,\\
+    S &= \int_{t_a}^{t_b}\! s(\tau)\sin(\varphi_f\tau)\dd\tau.
+  \end{aligned}
+  \label{eq:JaCbScM}
+\end{equation}
+We have reduced a rotating vector integral to three \emph{scalar} integrals.
+
+\subsection{The three scalar integrals}
+
+With $s$ from \eqref{eq:rate}, all three reduce to the two elementary antiderivatives
+\begin{align}
+  E_s(k,\Om,\psi;\tau)&\equiv\int \e^{k\tau}\sin(\Om\tau+\psi)\dd\tau
+   = \frac{\e^{k\tau}\big(k\sin(\Om\tau+\psi)-\Om\cos(\Om\tau+\psi)\big)}{k^2+\Om^2},\\
+  E_c(k,\Om,\psi;\tau)&\equiv\int \e^{k\tau}\cos(\Om\tau+\psi)\dd\tau
+   = \frac{\e^{k\tau}\big(k\cos(\Om\tau+\psi)+\Om\sin(\Om\tau+\psi)\big)}{k^2+\Om^2},
+\end{align}
+(valid for $k^2+\Om^2\neq0$; for $k=\Om=0$ the integrand is the constant $\sin\psi$ or
+$\cos\psi$). Using the product-to-sum identities
+$\sin\alpha\cos\beta=\tfrac12[\sin(\alpha+\beta)+\sin(\alpha-\beta)]$ and
+$\sin\alpha\sin\beta=\tfrac12[\cos(\alpha-\beta)-\cos(\alpha+\beta)]$ with
+$\alpha=w\tau+\psi$, $\beta=\varphi_f\tau$, the integrals evaluate (as
+$F\big|_{t_a}^{t_b}=F(t_b)-F(t_a)$) to
+\begin{align}
+  M &= A\,\tau - B\,E_s(k,w,\psi;\tau)\,\Big|_{t_a}^{t_b}, \label{eq:M}\\[2pt]
+  C &= \Big[\,A\,\tfrac{\sin(\varphi_f\tau)}{\varphi_f}
+      - \tfrac{B}{2}\big(E_s(k,w{+}\varphi_f,\psi;\tau)+E_s(k,w{-}\varphi_f,\psi;\tau)\big)\Big]\Big|_{t_a}^{t_b}, \label{eq:C}\\[2pt]
+  S &= \Big[\,-A\,\tfrac{\cos(\varphi_f\tau)}{\varphi_f}
+      - \tfrac{B}{2}\big(E_c(k,w{-}\varphi_f,\psi;\tau)-E_c(k,w{+}\varphi_f,\psi;\tau)\big)\Big]\Big|_{t_a}^{t_b}. \label{eq:S}
+\end{align}
+Equations \eqref{eq:J}--\eqref{eq:S} are the exact increment, evaluated with a handful of
+$\exp$, $\sin$, $\cos$ calls and no time stepping.
+
+\subsection{The non-rotating limit}
+
+As $\varphi_f\to0$ the frame stops and $\Rb(\tau)\to\mathbf{I}$, so
+$\mathbf{J}(\mathbf{d};s)\to\big(\int s\dd\tau\big)\mathbf{d}=M\,\mathbf{d}$. This is exactly
+the old ``scalar integral $\times$ constant direction'' formula: \textbf{when $\bwf=\mathbf
+0$ the directions never move and the previous construction was already exact}; the error
+identified in Section~\ref{sec:naive} appears only for a rotating frame. The code takes
+this $M\mathbf{d}$ branch directly when $\varphi_f=0$, avoiding the undefined axis $\nf$.
+
+% ===========================================================================
+\section{Orientation: a fourth-order Magnus integrator}
+\label{sec:orientation}
+
+\subsection{Why composing $\int\bw\,\mathrm{d}\tau$ is not exact}
+
+A particle's orientation obeys the linear but \emph{non-autonomous} attitude equation
+\begin{equation}
+  \dot{\mathbf{R}}(t)=[\bw(t)]_\times\,\mathbf{R}(t),
+  \qquad\text{equivalently}\qquad
+  \dot q=\tfrac12\,\bw(t)\otimes q,
+\end{equation}
+with $\bw$ in the world frame. Over one step the exact update is
+$\mathbf{R}(t_k)=\exp(\boldsymbol{\Om})\,\mathbf{R}(t_{k-1})$, where the generator
+$\boldsymbol{\Om}$ is given by the \emph{Magnus expansion}
+\begin{equation}
+  \boldsymbol{\Om} = \int_{t_{k-1}}^{t_k}\!\bw\dd\tau
+  \;+\;\tfrac12\!\int_{t_{k-1}}^{t_k}\!\!\dd\tau_1\!\int_{t_{k-1}}^{\tau_1}\!\!\dd\tau_2\,
+        \big[\bw(\tau_1),\bw(\tau_2)\big]
+  \;+\;\cdots,
+  \label{eq:magnus}
+\end{equation}
+and the Lie bracket on $\mathfrak{so}(3)$ is the cross product,
+$[\mathbf{a},\mathbf{b}]=\mathbf{a}\times\mathbf{b}$. The first term is the plain integral of
+the angular velocity; the second is the \emph{coning} (non-commutativity) correction that
+arises because rotations about different axes do not commute.
+
+Two errors therefore lurk. (i) If $\int\bw\dd\tau$ is itself built from end-of-step
+directions it is only first order, exactly as in Section~\ref{sec:naive}. (ii) Even with
+the integral done exactly, simply exponentiating it drops the commutator term, leaving a
+per-step error of $\Oo(\Dt^3)$, i.e.\ \emph{second order} globally. Both must be addressed
+to obtain a high-fidelity reference orientation.
+
+\subsection{Two-node Gauss--Magnus (order 4)}
+
+The fourth-order Magnus method evaluates the angular velocity at the two Gauss--Legendre
+nodes of the step,
+\begin{equation}
+  \tau_{1,2}=t_{k-1}+\Big(\tfrac12\mp\tfrac{\sqrt3}{6}\Big)\Dt,
+  \qquad \bw_1=\bw(\tau_1),\ \ \bw_2=\bw(\tau_2),
+\end{equation}
+and forms
+\begin{equation}
+  \boxed{\;
+  \boldsymbol{\Om}
+   = \tfrac12\Dt\,(\bw_1+\bw_2)
+   + \tfrac{\sqrt3}{12}\,\Dt^2\,(\bw_2\times\bw_1),
+  \;}
+  \qquad
+  q_k=\exp(\boldsymbol{\Om})\otimes q_{k-1}.
+  \label{eq:magnus4}
+\end{equation}
+The first term is the two-point Gauss quadrature of $\int\bw\dd\tau$ (exact for cubics);
+the second is the leading coning term. The scheme is locally $\Oo(\Dt^5)$, hence
+$\Oo(\Dt^4)$ globally. Because we can evaluate $\bw_i(\tau)$ in closed form anywhere (the
+expressions \eqref{eq:wij}), the Gauss samples cost nothing extra in accuracy.
+
+\subsection{Derivation of the coning coefficient}
+
+To see that \eqref{eq:magnus4} reproduces the coning term, expand $\bw$ about the step
+midpoint $t_m$ as $\bw(\tau)=\bw_m+\dot{\bw}_m(\tau-t_m)+\Oo(\Dt^2)$. The bracket in
+\eqref{eq:magnus} is, to leading order,
+\begin{equation}
+  [\bw(\tau_1),\bw(\tau_2)]
+  = \big(\bw_m+\dot{\bw}_m(\tau_1-t_m)\big)\times\big(\bw_m+\dot{\bw}_m(\tau_2-t_m)\big)
+  = (\bw_m\times\dot{\bw}_m)\,(\tau_2-\tau_1)+\Oo(\Dt^2),
+\end{equation}
+using $\bw_m\times\bw_m=\mathbf0$. Integrating over the triangle
+$t_{k-1}\le\tau_2\le\tau_1\le t_k$ gives $\int\!\!\int(\tau_2-\tau_1)=-\Dt^3/6$, so the exact
+coning contribution is
+\begin{equation}
+  \tfrac12\!\int\!\!\int[\bw(\tau_1),\bw(\tau_2)]
+   = -\tfrac{1}{12}\Dt^3\,(\bw_m\times\dot{\bw}_m).
+  \label{eq:cone-exact}
+\end{equation}
+For the Gauss samples, with $a=\tfrac{\sqrt3}{6}\Dt$ one has
+$\bw_{1,2}=\bw_m\mp a\dot{\bw}_m$, hence
+$\bw_1\times\bw_2 = 2a\,(\bw_m\times\dot{\bw}_m)=\tfrac{\sqrt3}{3}\Dt\,(\bw_m\times\dot{\bw}_m)$.
+Therefore
+\begin{equation}
+  \tfrac{\sqrt3}{12}\Dt^2(\bw_2\times\bw_1)
+  = -\tfrac{\sqrt3}{12}\Dt^2(\bw_1\times\bw_2)
+  = -\tfrac{1}{12}\Dt^3(\bw_m\times\dot{\bw}_m),
+\end{equation}
+which matches \eqref{eq:cone-exact} exactly. The commutator term in \eqref{eq:magnus4} is
+the coning correction, and its sign and coefficient are fixed.
+
+\subsection{Why the increments need no coning, but $q$ does}
+
+The increments $\mathrm{d}\boldsymbol{\theta}_t,\mathrm{d}\mathbf u_r,\mathrm{d}\mathbf u_s,
+\mathrm{d}\boldsymbol{\theta}_b$ are \emph{ordinary integrals} of rates -- physical
+angle/length increments that the constitutive laws accumulate. They contain no
+commutator: coning is an artefact of \emph{composing finite rotations}, not of the
+integral itself. That is why Section~\ref{sec:increments} integrates them exactly with no
+Magnus term, while the orientation -- which \emph{is} a finite-rotation composition --
+carries the coning term \eqref{eq:magnus4}. Both are exact-continuum to the order quoted,
+so they remain mutually consistent (Section~\ref{sec:why}).
+
+% ===========================================================================
+\section{Why this improves the results}
+\label{sec:why}
+
+\paragraph{Order of accuracy.} Table~\ref{tab:orders} collects the global error orders for
+a rotating frame ($\bwf\neq\mathbf0$). The previous endpoint construction was first order;
+the schemes here make the increments exact (machine precision) and the orientation
+fourth order.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+Quantity & Previous scheme & This work\\
+\midrule
+Increments $\mathrm{d}\boldsymbol\theta_t,\mathrm{d}\mathbf u_r,\mathrm{d}\mathbf u_s,\mathrm{d}\boldsymbol\theta_b$
+  & exact scalar $\times$ endpoint dir., $\Oo(\Dt)$ & closed form, exact ($\sim$\,machine)\\
+Orientation $q_i,q_j$
+  & endpoint generator, $\Oo(\Dt)$ & Gauss--Magnus order 4, $\Oo(\Dt^4)$\\
+\bottomrule
+\end{tabular}
+\caption{Global accuracy for a rotating contact frame. For $\bwf=\mathbf0$ the directions
+are constant and the previous increments were already exact (Section~\ref{sec:increments}).}
+\label{tab:orders}
+\end{table}
+
+\paragraph{Consistency of the reference.} The orientations $q_i,q_j$ are \emph{imposed} on
+the DEM bodies every step, and the solver reconstructs the relative twist and bending from
+that imposed orientation; meanwhile the analytical reference torques are built from
+$\mathrm{d}\boldsymbol{\theta}_t$ and $\mathrm{d}\boldsymbol{\theta}_b$. If $q$ and the
+increments came from different discrete rules they would disagree even for a perfect
+constitutive law. Deriving both from the same exact kinematics removes this internal
+inconsistency.
+
+\paragraph{Isolating the DEM error.} Once the reference is exact to machine precision, any
+residual in the DEM--vs--analytical comparison reflects the DEM scheme (its own time
+integration and constitutive implementation), not the reference. The test suite then
+measures what it is meant to measure.
+
+\paragraph{Numerical confirmation.} Evaluated against adaptive quadrature of the integrands
+in \eqref{eq:increments}, the closed-form increments agree to
+$\sim\!10^{-15}$ (round-off). The Magnus orientation agrees with a tolerance-$10^{-12}$
+adaptive ODE solution of $\dot q=\tfrac12\bw\otimes q$ to $\sim\!3\times10^{-11}$ (geodesic
+angle) at the production step size. By contrast the endpoint scheme exhibits the textbook
+$\Oo(\Dt)$ convergence of Table~\ref{tab:orders}.
+
+% ===========================================================================
+\section{Map to the implementation}
+\label{sec:impl}
+
+All of the above lives in \texttt{scripts\_PY/A\_analytical\_motion.py}:
+\begin{itemize}
+  \item \texttt{\_expsin\_antideriv}, \texttt{\_expcos\_antideriv} -- the antiderivatives
+        $E_s,E_c$, including the $k=\Om=0$ guard.
+  \item \texttt{\_rotated\_integral(d0, A,B,w,$\psi$,k, t\_a,t\_b)} -- the canonical
+        integral $\mathbf{J}$, assembling $\mathbf a C+\mathbf b S+\mathbf c M$ via
+        \eqref{eq:M}--\eqref{eq:S}, with the $\varphi_f=0\Rightarrow M\mathbf d$ fast path.
+        It is called with the seeds of \eqref{eq:incr-as-J}--\eqref{eq:dthi-as-J} to fill
+        $\mathrm{d}\boldsymbol\theta_t,\mathrm{d}\mathbf u_r,\mathrm{d}\mathbf u_s$ and the
+        per-particle $\mathrm{d}\boldsymbol\theta_i$ (hence $\mathrm{d}\boldsymbol\theta_b$).
+  \item the Magnus block -- evaluates $\bw_{i,j}$ at the two Gauss nodes via
+        \texttt{\_vel\_at} and forms \eqref{eq:magnus4}; \texttt{my\_integrate\_rotation}
+        composes the per-step generators into $q_i,q_j$.
+\end{itemize}
+The whole routine is vectorised over the time axis: \eqref{eq:M}--\eqref{eq:S} are array
+expressions in $t_a,t_b$, and the Gauss samples are batched, so the exact reference is also
+the fast one.
+
+\end{document}

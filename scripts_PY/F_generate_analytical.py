@@ -492,7 +492,7 @@ else:
             )
     elif testID == 13:
         Reff = 2.0*(contact_params['R_i'] * contact_params['R_j']) / (contact_params['R_i'] + contact_params['R_j'])
-        contact_params['k_b'] = contact_params['k_r'] * Reff
+        contact_params['k_b'] = contact_params['k_r'] * (Reff ** 2)
         contact_params['k_r'] = 0.0
         results = my_analytical_contact(
             motion,

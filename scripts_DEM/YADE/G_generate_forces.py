@@ -128,12 +128,12 @@ O.bodies[1].state.ori = Quaternion((q_j[0,0], q_j[0,1], q_j[0,2]), q_j[0,3])
 current_index = 0
 def imposeKinematics():
     """Impose the prescribed state for the current step: on-step positions and
-    orientations, plus HALF-step linear/angular velocities (converted from the
-    analytical on-step velocities by on_to_half(), so the leapfrog integrator and
-    saveKinematics() both see a consistent half-step value)."""
+    orientations, plus the exact analytical HALF-step linear/angular velocities
+    (v_*_half, omega_*_half) read straight from the JSON, which is the value the
+    leapfrog integrator expects at v(t_k - dt/2)."""
     global current_index
     if current_index < N:
-        # velocities -- impose the HALF-step value (leapfrog); see on_to_half() above.
+        # velocities -- impose the analytical HALF-step value v(t_k - dt/2) (leapfrog).
         # (arrays must be shape (N,3))
         O.bodies[0].state.vel = (v_i_half[current_index,0], v_i_half[current_index,1], v_i_half[current_index,2])
         O.bodies[1].state.vel = (v_j_half[current_index,0], v_j_half[current_index,1], v_j_half[current_index,2])
@@ -153,59 +153,35 @@ def imposeKinematics():
 
     current_index += 1
 
-# --- Persistent velocity state for half-step averaging ---
-# Newton integrator uses a leapfrog scheme: velocities live at t+dt/2 (half-steps).
-# To recover the on-step value at t we average the bracketing half-step values:
-#   v(t) ≈ 0.5 * (v(t-dt/2) + v(t+dt/2))
-# On the very first step t-dt/2 does not exist, so we use the current value directly.
-_prev_v1 = None   # velocity of body 0 from the previous half-step
-_prev_v2 = None   # velocity of body 1 from the previous half-step
-_prev_w1 = None   # angular velocity of body 0 from the previous half-step
-_prev_w2 = None   # angular velocity of body 1 from the previous half-step
- 
 # Staging dict: kinematics are recorded here by saveKinematics() and consumed
 # together with forces/torques by saveForcesTorques() in a single plot.addData() call.
 _kinem = {}
 
 def saveKinematics():
-	"""Record positions, orientations, and on-step velocities AFTER imposeKinematics().
-	Velocities are stored by YADE at the leapfrog half-steps; imposeKinematics() has
-	just written the half-step value for this step, so the on-step velocity is recovered
-	with the trailing average v(t_k) = 1/2 [v_half(t_k - dt/2) + v_half(t_k + dt/2)],
-	i.e. 1/2 * (previous half-step + current half-step). Positions and orientations are
-	on-step and are stored directly."""
-	global _prev_v1, _prev_v2, _prev_w1, _prev_w2, _kinem
+	"""Record positions, orientations, and HALF-step velocities AFTER imposeKinematics().
+	YADE's NewtonIntegrator is a leapfrog scheme: state.vel/state.angVel live at the
+	half-steps v(t_k - dt/2). We save those raw half-step values directly -- no on-step
+	reconstruction (which would cost O(dt^2) accuracy). The velocity columns are suffixed
+	'_half' so downstream comparison (I_make_figure.py) can detect that these are
+	half-step quantities and compare them against the analytical half-step velocities
+	(v_*_half, omega_*_half) instead of the on-step ones. Positions and orientations are
+	on-step and are also stored directly."""
+	global _kinem
 	s1 = O.bodies[0].state
 	s2 = O.bodies[1].state
- 
-	# Read raw (half-step) velocities from the integrator
-	v1 = np.array(s1.vel)
-	v2 = np.array(s2.vel)
-	w1 = np.array(s1.angVel)
-	w2 = np.array(s2.angVel)
- 
-	# Average to reconstruct the on-step velocity at t;
-	# fall back to the current value for the very first step (no previous half-step exists)
-	v1_t = v1 if _prev_v1 is None else 0.5 * (_prev_v1 + v1)
-	v2_t = v2 if _prev_v2 is None else 0.5 * (_prev_v2 + v2)
-	w1_t = w1 if _prev_w1 is None else 0.5 * (_prev_w1 + w1)
-	w2_t = w2 if _prev_w2 is None else 0.5 * (_prev_w2 + w2)
- 
-	# Advance the stored previous half-step values
-	_prev_v1, _prev_v2 = v1.copy(), v2.copy()
-	_prev_w1, _prev_w2 = w1.copy(), w2.copy()
- 
-	# Stage kinematics for saveForcesTorques()
+
+	# Stage kinematics for saveForcesTorques(). Velocities carry the '_half' suffix
+	# to mark them as leapfrog half-step values v(t_k - dt/2).
 	_kinem = dict(
 		t=O.time,
 		x1=s1.pos[0],  y1=s1.pos[1],  z1=s1.pos[2],
 		x2=s2.pos[0],  y2=s2.pos[1],  z2=s2.pos[2],
 		qx1=s1.ori[0], qy1=s1.ori[1], qz1=s1.ori[2], qw1=s1.ori[3],
 		qx2=s2.ori[0], qy2=s2.ori[1], qz2=s2.ori[2], qw2=s2.ori[3],
-		v1x=v1_t[0], v1y=v1_t[1], v1z=v1_t[2],
-		v2x=v2_t[0], v2y=v2_t[1], v2z=v2_t[2],
-		w1x=w1_t[0], w1y=w1_t[1], w1z=w1_t[2],
-		w2x=w2_t[0], w2y=w2_t[1], w2z=w2_t[2],
+		v1x_half=s1.vel[0], v1y_half=s1.vel[1], v1z_half=s1.vel[2],
+		v2x_half=s2.vel[0], v2y_half=s2.vel[1], v2z_half=s2.vel[2],
+		w1x_half=s1.angVel[0], w1y_half=s1.angVel[1], w1z_half=s1.angVel[2],
+		w2x_half=s2.angVel[0], w2y_half=s2.angVel[1], w2z_half=s2.angVel[2],
 	)
  
 # --- Force/torque imposition (counterpart to imposeKinematics) ---
@@ -252,7 +228,7 @@ def saveForcesTorques():
 #   6. (iff measuring) saveForcesTorques – snapshot forces/torques and commit the full record
 #   7. NewtonIntegrator – advance the simulation by dt
 O.dt = dt[0]
-O.engines = [										# t, x(t), v(t-dt/2), a(t-dt), F(t-dt), T(t-dt)
+O.engines = [										# t, x(t), q(t), v(t-dt/2), a(t-dt), F(t-dt), T(t-dt)
 	ForceResetter(),
 	PyRunner(command='imposeKinematics()',  initRun=True, iterPeriod=1),
 	PyRunner(command='saveKinematics()',    initRun=True, iterPeriod=1),
@@ -267,10 +243,10 @@ O.engines = [										# t, x(t), v(t-dt/2), a(t-dt), F(t-dt), T(t-dt)
 			kb=MatchMaker(algo='val', val=kb), etab=MatchMaker(algo='val', val=etab), mub=MatchMaker(algo='val', val=mub)
 		)],
 		[Law2_ScGeom_MaxwellPhys_general(limitViscousPart=True,preserveHistory=True)]
-	), 												# t, x(t), v(t-dt/2), a(t-dt), F(t), T(t)
+	), 												# t, x(t), q(t), v(t-dt/2), a(t-dt), F(t), T(t)
 # 	PyRunner(command='imposeForcesTorques()', initRun=True, iterPeriod=1),
 	PyRunner(command='saveForcesTorques()', initRun=True, iterPeriod=1),
-	NewtonIntegrator(gravity=(0, 0, 0), damping=0) 	# t+dt, x(t+dt), v(t+dt/2), a(t), F(t), T(t)
+	NewtonIntegrator(gravity=(0, 0, 0), damping=0) 	# t+dt, x(t+dt), q(t+dt), v(t+dt/2), a(t), F(t), T(t)
 ]
 
 # --- Set up plotting ---
@@ -283,10 +259,12 @@ import csv
 file = open(outputFile, mode='w', newline='', encoding='utf-8')
 file.write('# ')
 writer = csv.writer(file, delimiter=' ')
-# Header is: # x1 y1 z1 x2 y2 z2 qx1 qy1 qz1 qw1 qx2 qy2 qz2 qw2 
-# 			 v1x v1y v1z v2x v2y v2z w1x w1y w1z w2x w2y w2z 
+# Header is: # x1 y1 z1 x2 y2 z2 qx1 qy1 qz1 qw1 qx2 qy2 qz2 qw2
+# 			 v1x_half v1y_half v1z_half v2x_half v2y_half v2z_half
+# 			 w1x_half w1y_half w1z_half w2x_half w2y_half w2z_half
 # 			 f1x f1y f1z f2x f2y f2z t1x t1y t1z t2x t2y t2z
-# or in vector notation: pos1 pos2 vel1 vel2 q1 q2 omega1 omega2 F1 F2 T1 T2
+# or in vector notation: pos1 pos2 q1 q2 vel1_half vel2_half omega1_half omega2_half F1 F2 T1 T2
+# Velocities carry the '_half' suffix: they are the leapfrog HALF-step values v(t-dt/2) and omega(t-dt/2).
 writer.writerow(plot.data.keys())
 writer.writerows(zip(*plot.data.values()))
 file.close()

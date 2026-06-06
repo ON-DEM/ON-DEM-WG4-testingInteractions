@@ -43,7 +43,15 @@ myGroups = {
 def load_grouped_csv(filename, groups=myGroups):
     # Example usage:
     #data_dict = load_grouped_csv('test_results.out')
-    # Now data_dict['pos1'] is an (N,3) array, etc.
+    # Now data_dict['x_i'] is an (N,3) array, etc.
+    #
+    # Velocity/angular-velocity columns may be written either ON-step ('v1x',
+    # 'w1x', ...) or at the leapfrog HALF-step ('v1x_half', 'w1x_half', ...).
+    # We resolve each requested column against the header, transparently falling
+    # back to the '_half'-suffixed name, so the caller always gets the same group
+    # keys ('v_i', 'w_i', ...) regardless of which convention was written. The
+    # detected convention is reported in result['vel_mode'] ('on' or 'half') so a
+    # downstream comparison can pick the matching analytical series.
 
     # Read CSV header and data
     with open(filename, 'r') as f:
@@ -53,11 +61,23 @@ def load_grouped_csv(filename, groups=myGroups):
             header = header[1:]  # Remove comment char if present
         data = np.array([list(map(float, row)) for row in reader if row and not row[0].startswith('#')])
 
+    def col_index(col):
+        # Prefer the exact (on-step) column; fall back to the '_half' variant.
+        if col in header:
+            return header.index(col)
+        if col + '_half' in header:
+            return header.index(col + '_half')
+        raise KeyError(f"Column '{col}' (nor '{col}_half') found in header of {filename}")
+
     # Build dictionary with grouped arrays
     result = {}
     for group_name, cols in groups.items():
-        idxs = [header.index(col) for col in cols]
+        idxs = [col_index(col) for col in cols]
         result[group_name] = data[:, idxs]
+
+    # Record which velocity convention the file used (half-step columns are
+    # '_half'-suffixed). 'v1x_half' is representative of the whole velocity block.
+    result['vel_mode'] = 'half' if 'v1x_half' in header else 'on'
     return result
 
 #

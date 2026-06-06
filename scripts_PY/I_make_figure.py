@@ -34,29 +34,44 @@ COLOR_DEM = (0.1020, 0.8000, 0.1020)  # Light green
 COLOR_ZERO = 'black'
 
 def load_dem_data(filepath):
-    """Load DEM output data from CSV file."""
+    """Load DEM output data from CSV file.
+
+    The column order is fixed (positions, orientations, velocities, angular
+    velocities, forces, torques), so the data are read positionally. The velocity
+    columns, however, may be written either ON-step ('v1x', 'w1x', ...) or at the
+    leapfrog HALF-step ('v1x_half', 'w1x_half', ...). We inspect the header to
+    detect which convention was used and record it in result['vel_mode'] ('on' or
+    'half') so the comparison can be made against the matching analytical series.
+    """
+    # Read the header line to detect the velocity convention.
+    with open(filepath) as fh:
+        header = fh.readline()
+    cols = header.lstrip('#').split()
+    vel_mode = 'half' if 'v1x_half' in cols else 'on'
+
     data = np.loadtxt(filepath, comments='#')
-    
-    # New header format:
-    # t x1 y1 z1 x2 y2 z2 qx1 qy1 qz1 qw1 qx2 qy2 qz2 qw2 
-    # v1x v1y v1z v2x v2y v2z w1x w1y w1z w2x w2y w2z 
+
+    # Header format (velocity columns are '..._half' when vel_mode == 'half'):
+    # t x1 y1 z1 x2 y2 z2 qx1 qy1 qz1 qw1 qx2 qy2 qz2 qw2
+    # v1x v1y v1z v2x v2y v2z w1x w1y w1z w2x w2y w2z
     # f1x f1y f1z f2x f2y f2z t1x t1y t1z t2x t2y t2z
-    
+
     result = {}
+    result['vel_mode'] = vel_mode
     result['t'] = data[:, 0]
     result['x_i'] = data[:, 1:4]      # x1, y1, z1
     result['x_j'] = data[:, 4:7]      # x2, y2, z2
     result['q_i'] = data[:, 7:11]     # qx1, qy1, qz1, qw1
     result['q_j'] = data[:, 11:15]    # qx2, qy2, qz2, qw2
-    result['v_i'] = data[:, 15:18]    # v1x, v1y, v1z
-    result['v_j'] = data[:, 18:21]    # v2x, v2y, v2z
-    result['omega_i'] = data[:, 21:24]  # w1x, w1y, w1z
-    result['omega_j'] = data[:, 24:27]  # w2x, w2y, w2z
+    result['v_i'] = data[:, 15:18]    # v1x(_half), v1y, v1z
+    result['v_j'] = data[:, 18:21]    # v2x(_half), v2y, v2z
+    result['omega_i'] = data[:, 21:24]  # w1x(_half), w1y, w1z
+    result['omega_j'] = data[:, 24:27]  # w2x(_half), w2y, w2z
     result['F_i'] = data[:, 27:30]    # f1x, f1y, f1z
     result['F_j'] = data[:, 30:33]    # f2x, f2y, f2z
     result['T_i'] = data[:, 33:36]    # t1x, t1y, t1z
     result['T_j'] = data[:, 36:39]    # t2x, t2y, t2z
-    
+
     return result
 
 def downsample_data(data, target_points=70):
@@ -110,23 +125,42 @@ def compute_error_metrics(ana_data, dem_data):
     t_max = t_ana[n-1]
     
     metrics = {}
-    
-    # Compute for each quantity using FULL data
+
+    # Choose which analytical velocity series to compare against, matching the
+    # convention the DEM run actually reported. If the DEM output stored half-step
+    # velocities we compare against the analytical half-step series (v_*_half,
+    # omega_*_half); otherwise we compare on-step against on-step.
+    vel_mode = dem_data.get('vel_mode', 'on')
+    if vel_mode == 'half' and 'v_i_half' in ana_data and 'omega_i_half' in ana_data:
+        ana_vel_keys = ('v_i_half', 'v_j_half')
+        ana_ang_keys = ('omega_i_half', 'omega_j_half')
+    else:
+        if vel_mode == 'half':
+            print("WARNING: DEM reported half-step velocities but the analytical file "
+                  "has no half-step series; comparing against on-step instead.")
+        ana_vel_keys = ('v_i', 'v_j')
+        ana_ang_keys = ('omega_i', 'omega_j')
+
+    # Compute for each quantity using FULL data.
+    # Each entry maps to ((ana_key_i, ana_key_j), (dem_key_i, dem_key_j)); the DEM
+    # velocity/angular-velocity arrays always live under 'v_*'/'omega_*' (they hold
+    # whatever convention vel_mode indicates), while the analytical keys are selected
+    # above to match.
     quantities = {
-        'Position': ('x_i', 'x_j'),
-        'Velocity': ('v_i', 'v_j'),
-        'Orientation': ('q_i', 'q_j'),
-        'Angular velocity': ('omega_i', 'omega_j'),
-        'Force': ('F_i', 'F_j'),
-        'Torque': ('T_i', 'T_j')
+        'Position':         (('x_i', 'x_j'),               ('x_i', 'x_j')),
+        'Velocity':         (ana_vel_keys,                  ('v_i', 'v_j')),
+        'Orientation':      (('q_i', 'q_j'),               ('q_i', 'q_j')),
+        'Angular velocity': (ana_ang_keys,                  ('omega_i', 'omega_j')),
+        'Force':            (('F_i', 'F_j'),               ('F_i', 'F_j')),
+        'Torque':           (('T_i', 'T_j'),               ('T_i', 'T_j')),
     }
-    
-    for name, (key_i, key_j) in quantities.items():
+
+    for name, ((ana_key_i, ana_key_j), (dem_key_i, dem_key_j)) in quantities.items():
         # Use full data (first n points)
-        ana_i = ana_data[key_i][:n]
-        ana_j = ana_data[key_j][:n]
-        dem_i = dem_data[key_i][:n]
-        dem_j = dem_data[key_j][:n]
+        ana_i = ana_data[ana_key_i][:n]
+        ana_j = ana_data[ana_key_j][:n]
+        dem_i = dem_data[dem_key_i][:n]
+        dem_j = dem_data[dem_key_j][:n]
         
         # Reference magnitudes for the normalisation N (norm of each reference
         # vector, summed over both particles -- unchanged).
@@ -626,6 +660,11 @@ def main():
     
     print(f"✓ Loaded {len(ana_data['t'])} analytical points")
     print(f"✓ Loaded {len(dem_data['t'])} DEM points")
+    _vel_mode = dem_data.get('vel_mode', 'on')
+    if _vel_mode == 'half':
+        print("  Velocity convention: HALF-step (comparing against analytical v_*_half / omega_*_half)")
+    else:
+        print("  Velocity convention: ON-step (comparing against analytical v_* / omega_*)")
     
     # Downsample DEM data
     dem_data_ds = downsample_data(dem_data, target_points=70)
@@ -675,9 +714,11 @@ def main():
     print(f"\n{'='*70}")
     print("SUMMARY OF ERROR METRICS")
     print('='*70)
+    _vel_suffix = ' (half-step)' if dem_data.get('vel_mode', 'on') == 'half' else ' (on-step)'
     for name in ['Position', 'Velocity', 'Orientation', 'Angular velocity', 'Force', 'Torque']:
         m = metrics[name]
-        print(f"\n{name}:")
+        label = name + (_vel_suffix if name in ('Velocity', 'Angular velocity') else '')
+        print(f"\n{label}:")
         print(f"  Particle i: ER_NORM = {m['ER_NORM_i']:.4e}")
         print(f"  Particle j: ER_NORM = {m['ER_NORM_j']:.4e}")
     

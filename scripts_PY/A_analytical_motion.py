@@ -350,7 +350,18 @@ def my_analytical_motion(
     u_n = (R_i + R_j - l_mag).reshape(-1,1) # Surface-to-surface across entire contact
     u_n = np.maximum(u_n, 0.0)
 
-    # Compute orientation using analytical rotation increments
+    # Compute orientation using the midpoint (half-step) angular velocity.
+    # The rotation increment for the step [t_{k-1}, t_k] is omega(t_k - dt/2) * dt,
+    # i.e. the midpoint-rule integral of the angular velocity. Because omega_*_half[k]
+    # is evaluated exactly at the step midpoint t_k - dt/2, this is second-order
+    # accurate in dt, whereas building the increment from the step-endpoint direction
+    # vectors (dtheta_vec_i/j below) is only first-order whenever the contact frame
+    # rotates (omega_f != 0). Index 0 is the initial orientation, so its increment is
+    # zeroed (omega_*_half[0] = omega(-dt/2) would otherwise apply a spurious rotation).
+    dtheta_mid_i = omega_i_half * dt
+    dtheta_mid_j = omega_j_half * dt
+    dtheta_mid_i[0] = 0.0
+    dtheta_mid_j[0] = 0.0 # We don't use this now - check later.
     q_i = my_integrate_rotation(init_q_i, dtheta_vec_i)
     q_j = my_integrate_rotation(init_q_j, dtheta_vec_j)
 

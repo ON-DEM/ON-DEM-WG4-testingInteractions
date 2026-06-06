@@ -174,7 +174,7 @@ def my_analytical_motion(
         xi = Rb.apply(x_f) + v_f * ti                              # x_i (Eq. 1)
 
         # Linear velocities (Eq. 3 and 4)
-        vi = v_f + np.cross(omega_f, xi)
+        vi = v_f + np.cross(omega_f, xi) - np.cross(omega_f, v_f) * ti
         vj = vi + np.cross(omega_f, l) + v_ijn_loc
 
         # Angular velocities (Eq. 23)
@@ -216,13 +216,13 @@ def my_analytical_motion(
         x_j[idx] = x_i[idx] + l_ij[idx]
 
         # Velocities (Eq. 3 and 4)
-        v_i[idx] = v_f + np.cross(omega_f, x_i[idx])
+        v_i[idx] = v_f + np.cross(omega_f, x_i[idx]) - np.cross(omega_f, v_f) * ti
         v_j[idx] = v_i[idx] + np.cross(omega_f, l_ij[idx]) + v_ijn[idx]
         # Equivalently: v_j[idx] = v_f + np.cross(omega_f, x_j[idx]) + v_ijn[idx]
 
         # Accelerations
         # a_i = omega_f × (omega_f × x_i)
-        a_i[idx] = np.cross(omega_f, np.cross(omega_f, x_i[idx]))
+        a_i[idx] = np.cross(omega_f, np.cross(omega_f, x_i[idx])) - np.cross(omega_f, np.cross(omega_f, v_f)) * ti
         # a_j = a_i + a_ijn + 2*v_ijn*(omega_f × n_ij) + |l_ij|*omega_f × (omega_f × n_ij)
         a_j[idx] = (a_i[idx] 
                     + a_ijn[idx] 

@@ -270,16 +270,17 @@ elif testID == 13:
     R_i = 2.0    # large particle
     R_j = 0.2    # small particle  (size ratio 10:1)
     R = (R_i + R_j)/2.0
+    contact_params['k_s'] = 0.0
     contact_params['k_r'] = 0.25e7
     contact_params['R_i'] = R_i
     contact_params['R_j'] = R_j
     motion = my_analytical_motion(
         [0,0,0],[0,0,0],[0,0,0],             # no rigid-body motion
         [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
-        0, 0, 0, 0, 0, [0,0,1.96*R], # constant contact (~2% initial overlap)
+        0, 0, 0, 0, 0, [0,0,1.96*R],         # constant contact (~2% initial overlap)
         0, 0, 0, 0, 0,                       # no twist
-        0, 0.05*np.pi, 1.0, 0, 0,             # pure oscillating roll
-        0, 0, 0, 0, 0,                       # no shear: F_s must remain zero
+        0, 0.05*np.pi, 1.0, 0, 0,            # pure oscillating roll
+        0, 0.05*np.pi, 1.0, np.pi/2, 0,      # add shear to expose the contamination (phase-shifted)
         [1.0,0,0], [0,1.0,0],                # roll and shear axes
         tmax, dt,
         R_i, R_j
@@ -289,39 +290,41 @@ elif testID == 14:
     motion = my_analytical_motion(
         [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
         [0,0,0,1.0], [0,0,0,1.0], # initial ori
-        0, 0, 0, 0, 0, [0,0,1.96*R], # normal loading, initial branch
-        0, 0, 0, 0, 0, # twist
-        0, 0, 0, 0, 0, # roll
-        0, 0.8*R, 1.0, 0, -0.1, # shear
-        [1.0,0,0], [0,1.0,0], # roll and shear axes
+        0, 0.01*R, 1.0, 0, -0.1, [0,0,1.97*R],    # normal loading, initial branch
+        0, np.pi, 1.0, 0, -0.1,         # twist
+        0, np.pi, 1.0, 0, -0.1,         # roll
+        0, 0.5*R, 1.0, 0, -0.1,         # shear
+        [1.0,0,0], [0,1.0,0],           # roll and shear axes
         tmax, dt, # time
         R_i, R_j
     )
 elif testID == 15:
     # Complex rolling motion
+    #contact_params['k_s'] = 0.0
     contact_params['k_r'] = 0.25e7
     motion = my_analytical_motion(
         [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0],       # tilt rigid-body rotation (ω_f along x)  with 0.2 around the y axis is quite nice
-        [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
-        0, 0, 0, 0, 0, [0,0,1.96*R],         # constant contact # [0,1.96*R,0],
-        0, 0, 0, 0, 0,                       # no twist
-        0, np.pi, 1.0, 0, -0.1,          # complicated roll velocity
-        0, 0, 0, 0, 0,                       # no shear
-        [1.0,0,0], [0,1.0,0],                # roll and shear axes # [0,0,1.0], [1.0,0,0],
+        [0,0,0,1.0], [0,0,0,1.0],       # initial orientations
+        0, 0, 0, 0, 0, [0,0,1.96*R],    # constant contact # [0,1.96*R,0],
+        0, np.pi, 1.0, 0, -0.1,         # twist
+        0, np.pi, 1.0, 0, -0.1,         # roll
+        0,0,0,0,0,#0, 0.5*R, 1.0, 0, -0.1,         # shear
+        [1.0,0,0], [0,1.0,0],           # roll and shear axes # [0,0,1.0], [1.0,0,0],
         tmax, dt,
         R_i, R_j
     )
 elif testID == 16:
     # Complex twisting motion
+    #contact_params['k_s'] = 0.0
     contact_params['k_t'] = 0.50e7
     motion = my_analytical_motion(
         [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
-        [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
-        0, 0, 0, 0, 0, [1.96*R,0,0],         # constant contact #0, 0, 0, 0, 0, [0,0,1.96*R],
-        0, np.pi, 1.0, 0, -0.1,          # complicated twist velocity
-        0, 0, 0, 0, 0,                       # no roll
-        0, 0, 0, 0, 0,                       # no shear
-        [0,0,1.0], [0,1.0,0],                # roll and shear axes (needed for orientation) # [1.0,0,0], [0,1.0,0],
+        [0,0,0,1.0], [0,0,0,1.0],       # initial orientations
+        0, 0, 0, 0, 0, [1.96*R,0,0],    # constant contact #0, 0, 0, 0, 0, [0,0,1.96*R],
+        0, np.pi, 1.0, 0, -0.1,         # twist
+        0, np.pi, 1.0, 0, -0.1,         # roll
+        0,0,0,0,0,#0, 0.5*R, 1.0, 0, -0.1,         # shear
+        [0,0,1.0], [0,1.0,0],           # roll and shear axes (needed for orientation) # [1.0,0,0], [0,1.0,0],
         tmax, dt,
         R_i, R_j
     )
@@ -341,12 +344,12 @@ elif testID == 17:
     contact_params['k_t'] = 0.25e7
     motion = my_analytical_motion(
         [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
-        [0,0,0,1.0], [0,0,0,1.0],            # initial orientations
-        0, 0, 0, 0, 0, [0,0,1.96*R],         # constant contact (u_n = 0.05)
-        0, 1.0, 1.0, 0, 0,                 # twist: phi=0
-        0, 1.0, 1.0, np.pi/2, 0,           # roll: phi=pi/2, 90 deg out of phase
-        0, 0.5*R, 1.0, np.pi, 0,           # shear: phi=pi, 180 deg out of phase
-        [1.0,0,0], [0,1.0,0],                # roll and shear axes
+        [0,0,0,1.0], [0,0,0,1.0],           # initial orientations
+        0, 0.005*R, 1.0, 0, 0, [0,0,1.96*R],        # constant contact (u_n = 0.05)
+        0, 1.0, 1.0, 0, 0,                  # twist: phi=0
+        0, 1.0, 1.0, np.pi/2, 0,            # roll: phi=pi/2, 90 deg out of phase
+        0, 0.5*R, 1.0, np.pi, 0,            # shear: phi=pi, 180 deg out of phase
+        [1.0,0,0], [0,1.0,0],               # roll and shear axes
         tmax, dt,
         R_i, R_j
     )
@@ -494,6 +497,28 @@ else:
         Reff = 2.0*(contact_params['R_i'] * contact_params['R_j']) / (contact_params['R_i'] + contact_params['R_j'])
         contact_params['k_b'] = contact_params['k_r'] * (Reff ** 2)
         contact_params['k_r'] = 0.0
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_spring_dashpot,
+            Fs_spring_dashpot_Coulomb,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    elif testID == 15:
+        contact_params['k_s'] = 0.0
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_spring_dashpot,
+            Fs_spring_dashpot_Coulomb,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    elif testID == 16:
+        contact_params['k_s'] = 0.0
         results = my_analytical_contact(
             motion,
             contact_params,

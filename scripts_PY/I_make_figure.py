@@ -633,7 +633,7 @@ def main():
     ana_err_file = script_dir / '..' / 'output_ANA_ERR' / f'theoretical_output_test_{test_id:02d}.json'
     dem_file = script_dir / '..' / 'output_DEM' / f'dem_output_{software_label}_test_{test_id:02d}.csv'
     report_dir = script_dir / '..' / 'output_REPORT'
-    output_dir = script_dir / '..' / 'figures' 
+    output_dir = script_dir / '..' / 'output_figures' 
     
     # Check files exist
     if not ana_file.exists():

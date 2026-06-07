@@ -700,11 +700,11 @@ def main():
         # is best observed in the torque rather than the force.
         plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quantity='T',
                     ana_err_data=ana_err_data)
-    elif test_id == 14:
+    elif test_id == 15:
         # 3D force-space trajectory: axes are F_x, F_y, F_z (no time axis).
         plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
                          ana_err_data=ana_err_data)
-    elif test_id in [15, 16, 17]:
+    elif test_id in [14, 16, 17, 18]:
         # 3D torque-space trajectory: axes are T_x, T_y, T_z (no time axis).
         plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
                          quantity='T', ana_err_data=ana_err_data)

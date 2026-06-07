@@ -5,12 +5,12 @@ Quantity & MAPE$_i$ (\%) & MAPE$_j$ (\%) \\
 \hline
 Position $\vec{x}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
 Velocity $\vec{v}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
-Orientation $\vec{q}$ & $6.59\times10^{1}$ & $6.82\times10^{1}$ \\
+Orientation $\vec{q}$ & $5.13\times10^{1}$ & $6.49\times10^{1}$ \\
 Ang. velocity $\vec{\omega}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
-Force $\vec{F}$ & $9.97\times10^{-2}$ & $9.97\times10^{-2}$ \\
-Torque $\vec{T}$ & $2.11\times10^{-1}$ & $2.11\times10^{-1}$ \\
+Force $\vec{F}$ & $6.29\times10^{-13}$ & $6.29\times10^{-13}$ \\
+Torque $\vec{T}$ & $6.88\times10^{-2}$ & $6.88\times10^{-2}$ \\
 \hline
 Force imbalance & \multicolumn{2}{c}{$<1.0\times10^{-14}$} \\
-Torque imbalance & \multicolumn{2}{c}{$1.00\times10^{-13}$} \\
+Torque imbalance & \multicolumn{2}{c}{$1.40\times10^{-13}$} \\
 \hline
 \end{tabular}

@@ -21,7 +21,8 @@ doPlot = False
 Nsteps = 1.0e4
 
 # Run the faulty / alternative versions of the tests?
-doERR = False
+# Enable with --err on the command line, e.g.  python F_generate_analytical.py 1 --err
+doERR = ('--err' in sys.argv)
 
 # Size parameters
 R_i = 1.0

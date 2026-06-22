@@ -33,6 +33,41 @@ ALPHA_ANA_ERR = 0.75       # Slightly faint so it stays non-intrusive
 COLOR_DEM = (0.1020, 0.8000, 0.1020)  # Light green
 COLOR_ZERO = 'black'
 
+# Shared, ordered colour pool for faulty curves. The faulty ANALYTICAL reference
+# (output_ANA_ERR) takes colours first, then faulty DEM runs (output_DEM_ERR)
+# continue from the same pool — so with no analytical faulty file the first faulty
+# DEM curve takes amber. Amber is kept first for back-compatibility; the remaining
+# entries are colour-blind-friendly (Okabe-Ito) and chosen to stay clear of the
+# purple analytical and green DEM curves already in the plots.
+FAULT_COLORS = ['#B87000',  # amber  (existing faulty-reference colour)
+                '#0072B2',  # blue
+                '#CC79A7',  # reddish purple / pink
+                '#D55E00',  # vermillion
+                '#56B4E9']  # sky blue
+
+
+def build_fault_curves(ana_err_dir, dem_err_dir, test_id, software_label):
+    """Ordered list of faulty curves to overlay on a figure.
+
+    The analytical faulty reference (output_ANA_ERR, the legacy single
+    ``theoretical_output_test_NN.json``) comes first if present, then any faulty
+    DEM runs in output_DEM_ERR (``dem_output_<sw>_test_NN*.csv``, e.g. the
+    ``_noinit`` / ``_nobch`` variants for test 14). Colours are assigned in this
+    order from FAULT_COLORS. Returns a list of ``{'data', 'color'}`` dicts (empty
+    if there is nothing to overlay), so a test with no faulty files is unchanged.
+    """
+    import glob as _glob
+    curves = []
+    ana_err_file = ana_err_dir / f'theoretical_output_test_{test_id:02d}.json'
+    if ana_err_file.exists():
+        curves.append({'data': json_to_dict(str(ana_err_file)), 'source': ana_err_file.name})
+    dem_pattern = str(dem_err_dir / f'dem_output_{software_label}_test_{test_id:02d}*.csv')
+    for path in sorted(_glob.glob(dem_pattern)):
+        curves.append({'data': load_dem_data(path), 'source': Path(path).name})
+    for i, c in enumerate(curves):
+        c['color'] = FAULT_COLORS[i % len(FAULT_COLORS)]
+    return curves
+
 def load_dem_data(filepath):
     """Load DEM output data from CSV file.
 
@@ -320,7 +355,7 @@ def write_latex_table(metrics, test_id, software_label, output_dir):
 
 
 def plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quantity='F',
-                ana_err_data=None):
+                fault_curves=None):
     """Plot the x component of force (quantity='F') or torque (quantity='T') vs time.
 
     Parameters
@@ -349,13 +384,13 @@ def plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quan
     if t_dem.ndim > 1:
         t_dem = t_dem.flatten()
     
-    # Plot faulty reference curve first so it ends up below all other lines
-    if ana_err_data is not None:
-        t_err = ana_err_data['t']
+    # Plot faulty reference curve(s) first so they end up below all other lines
+    for err in (fault_curves or []):
+        t_err = err['data']['t']
         if t_err.ndim > 1:
             t_err = t_err.flatten()
-        ax.plot(t_err, ana_err_data[key_ana][:, 0],
-                color=COLOR_ANA_ERR, linewidth=1.5, alpha=ALPHA_ANA_ERR,
+        ax.plot(t_err, err['data'][key_ana][:, 0],
+                color=err['color'], linewidth=1.5, alpha=ALPHA_ANA_ERR,
                 linestyle='-', zorder=1)
 
     # Plot analytical data
@@ -395,7 +430,7 @@ def plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quan
 
 
 def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir, software_label,
-                 ana_err_data=None):
+                 fault_curves=None):
     """Plot 3D trajectory of force components."""
     import matplotlib.ticker as ticker
     
@@ -415,10 +450,13 @@ def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir, softw
     idx1 = comp_map[comp1]
     idx2 = comp_map[comp2]
     
-    # Plot faulty reference curve first so it ends up below all other lines
-    if ana_err_data is not None:
-        ax.plot(t_ana, ana_err_data['F_i'][:, idx1], ana_err_data['F_i'][:, idx2],
-                color=COLOR_ANA_ERR, linewidth=1.5, alpha=ALPHA_ANA_ERR,
+    # Plot faulty reference curve(s) first so they end up below all other lines
+    for err in (fault_curves or []):
+        t_err = err['data']['t']
+        if t_err.ndim > 1:
+            t_err = t_err.flatten()
+        ax.plot(t_err, err['data']['F_i'][:, idx1], err['data']['F_i'][:, idx2],
+                color=err['color'], linewidth=1.5, alpha=ALPHA_ANA_ERR,
                 linestyle='-', zorder=1)
 
     # Plot analytical data
@@ -470,13 +508,16 @@ def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir, softw
         
         return limit_min, limit_max
     
-    # Component 1 limits (with 10% margin)
-    data1 = np.concatenate([ana_data['F_i'][:, idx1], dem_data_ds['F_i'][:, idx1]])
+    # Component limits (with 10% margin) — include faulty curves so they fit
+    _err_F = [e['data']['F_i'] for e in (fault_curves or [])]
+    data1 = np.concatenate([ana_data['F_i'][:, idx1], dem_data_ds['F_i'][:, idx1]]
+                           + [f[:, idx1] for f in _err_F])
     ylim_min, ylim_max = get_nice_limits(data1)
     ax.set_ylim(ylim_min, ylim_max)
-    
+
     # Component 2 limits (with 10% margin)
-    data2 = np.concatenate([ana_data['F_i'][:, idx2], dem_data_ds['F_i'][:, idx2]])
+    data2 = np.concatenate([ana_data['F_i'][:, idx2], dem_data_ds['F_i'][:, idx2]]
+                           + [f[:, idx2] for f in _err_F])
     zlim_min, zlim_max = get_nice_limits(data2)
     ax.set_zlim(zlim_min, zlim_max)
     
@@ -512,7 +553,7 @@ def plot_test_3d(ana_data, dem_data_ds, test_id, comp1, comp2, output_dir, softw
 
 
 def plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
-                     quantity='F', ana_err_data=None):
+                     quantity='F', fault_curves=None):
     """Plot 3D trajectory in force or torque space without a time axis.
 
     Used for complex motion tests where the signal of interest is the path
@@ -541,10 +582,10 @@ def plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
     fig = plt.figure(figsize=(3.5, 3.0))
     ax = fig.add_subplot(111, projection='3d')
 
-    # Plot faulty reference curve first so it ends up below all other lines
-    if ana_err_data is not None:
-        ax.plot(ana_err_data[key][:, 0], ana_err_data[key][:, 1], ana_err_data[key][:, 2],
-                color=COLOR_ANA_ERR, linewidth=1.5, alpha=ALPHA_ANA_ERR,
+    # Plot faulty reference curve(s) first so they end up below all other lines
+    for err in (fault_curves or []):
+        ax.plot(err['data'][key][:, 0], err['data'][key][:, 1], err['data'][key][:, 2],
+                color=err['color'], linewidth=1.5, alpha=ALPHA_ANA_ERR,
                 linestyle='-', zorder=1)
 
     # Plot analytical data
@@ -585,12 +626,15 @@ def plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
         limit_max = math.ceil(data_max / step) * step
         return limit_min, limit_max
 
+    _err_key = [e['data'][key] for e in (fault_curves or [])]
     for idx, (setter, label_setter, formatter_axis) in enumerate([
         (ax.set_xlim, ax.set_xlabel, 'x'),
         (ax.set_ylim, ax.set_ylabel, 'y'),
         (ax.set_zlim, ax.set_zlabel, 'z'),
     ]):
-        data_all = np.concatenate([ana_data[key][:, idx], dem_data_ds[key][:, idx]])
+        # Include faulty curves in the limits so they are not clipped.
+        data_all = np.concatenate([ana_data[key][:, idx], dem_data_ds[key][:, idx]]
+                                  + [f[:, idx] for f in _err_key])
         lim_min, lim_max = get_nice_limits(data_all)
         setter(lim_min, lim_max)
         if max(abs(lim_min), abs(lim_max)) > 1000:
@@ -630,10 +674,11 @@ def main():
     # Set up paths
     script_dir = Path(__file__).parent
     ana_file = script_dir / '..' / 'output_ANA' / f'theoretical_output_test_{test_id:02d}.json'
-    ana_err_file = script_dir / '..' / 'output_ANA_ERR' / f'theoretical_output_test_{test_id:02d}.json'
+    ana_err_dir = script_dir / '..' / 'output_ANA_ERR'
+    dem_err_dir = script_dir / '..' / 'output_DEM_ERR'
     dem_file = script_dir / '..' / 'output_DEM' / f'dem_output_{software_label}_test_{test_id:02d}.csv'
     report_dir = script_dir / '..' / 'output_REPORT'
-    output_dir = script_dir / '..' / 'output_figures' 
+    output_dir = script_dir / '..' / 'output_figures'
     
     # Check files exist
     if not ana_file.exists():
@@ -651,13 +696,13 @@ def main():
     ana_data = json_to_dict(str(ana_file))
     dem_data = load_dem_data(str(dem_file))
     
-    # Load faulty reference data if available (same filename, different folder)
-    if ana_err_file.exists():
-        print(f"  Faulty ref: {ana_err_file.name}  (output_ANA_ERR)")
-        ana_err_data = json_to_dict(str(ana_err_file))
-    else:
-        ana_err_data = None
-    
+    # Collect faulty curves to overlay: the analytical faulty reference
+    # (output_ANA_ERR) first, then any faulty DEM runs (output_DEM_ERR). Colours are
+    # pooled across both in that order (see build_fault_curves / FAULT_COLORS).
+    fault_curves = build_fault_curves(ana_err_dir, dem_err_dir, test_id, software_label)
+    for err in fault_curves:
+        print(f"  Faulty curve: {err['source']}  ({err['color']})")
+
     print(f"✓ Loaded {len(ana_data['t'])} analytical points")
     print(f"✓ Loaded {len(dem_data['t'])} DEM points")
     _vel_mode = dem_data.get('vel_mode', 'on')
@@ -681,33 +726,33 @@ def main():
     print("\nGenerating high-quality figure...")
     if test_id in [1, 2]:
         plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
-                    ana_err_data=ana_err_data)
+                    fault_curves=fault_curves)
     elif test_id == 3:
         plot_test_3d(ana_data, dem_data_ds, test_id, 'y', 'z', output_dir, software_label,
-                     ana_err_data=ana_err_data)
+                     fault_curves=fault_curves)
     elif test_id == 4:
         plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'y', output_dir, software_label,
-                     ana_err_data=ana_err_data)
+                     fault_curves=fault_curves)
     elif test_id == 5:
         plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'z', output_dir, software_label,
-                     ana_err_data=ana_err_data)
+                     fault_curves=fault_curves)
     elif test_id in [6, 7, 8, 9, 10, 11, 12]:
         # Force x vs time
         plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
-                    ana_err_data=ana_err_data)
+                    fault_curves=fault_curves)
     elif test_id == 13:
         # Torque x vs time: the physically meaningful signal for this test
         # is best observed in the torque rather than the force.
         plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quantity='T',
-                    ana_err_data=ana_err_data)
+                    fault_curves=fault_curves)
     elif test_id == 15:
         # 3D force-space trajectory: axes are F_x, F_y, F_z (no time axis).
         plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
-                         ana_err_data=ana_err_data)
+                         fault_curves=fault_curves)
     elif test_id in [14, 16, 17, 18]:
         # 3D torque-space trajectory: axes are T_x, T_y, T_z (no time axis).
         plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
-                         quantity='T', ana_err_data=ana_err_data)
+                         quantity='T', fault_curves=fault_curves)
     else:
         print(f"WARNING: No figure specification for Test {test_id}")
     

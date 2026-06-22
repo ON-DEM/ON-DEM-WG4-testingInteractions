@@ -5,7 +5,7 @@ Quantity & MAPE$_i$ (\%) & MAPE$_j$ (\%) \\
 \hline
 Position $\vec{x}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
 Velocity $\vec{v}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
-Orientation $\vec{q}$ & $4.46\times10^{-1}$ & $4.87\times10^{0}$ \\
+Orientation $\vec{q}$ & $5.80\times10^{-1}$ & $1.26\times10^{1}$ \\
 Ang. velocity $\vec{\omega}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
 Force $\vec{F}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
 Torque $\vec{T}$ & $1.50\times10^{-5}$ & $1.50\times10^{-5}$ \\

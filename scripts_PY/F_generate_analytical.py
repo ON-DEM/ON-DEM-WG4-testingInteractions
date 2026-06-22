@@ -521,18 +521,8 @@ else:
             Tt_spring_dashpot_Coulomb,
             Tb_spring_dashpot_Coulomb
             )
-    elif testID == 14:
-        contact_params['k_s'] = 0.0
-        results = my_analytical_contact(
-            motion,
-            contact_params,
-            Fn_spring_dashpot,
-            Fs_spring_dashpot_Coulomb,
-            Tr_spring_dashpot_Coulomb,
-            Tt_spring_dashpot_Coulomb,
-            Tb_spring_dashpot_Coulomb
-            )
     else:
+        print(f"\n  No faulty case for this test, running regular case.")
         results = my_analytical_contact(
             motion,
             contact_params,

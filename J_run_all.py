@@ -63,12 +63,15 @@ def main():
                         help='Skip generating analytical reference data (Stage 1)')
     parser.add_argument('--skipdem', action='store_true',
                         help='Skip running DEM simulations and comparisons (Stage 2)')
+    parser.add_argument('--err', action='store_true',
+                        help='Run faulty cases of the analytical solutions for diagnostic purposes?')
     args = parser.parse_args()
 
     tests     = args.tests
     softwares = args.softwares
     skip_ana  = args.skipana
     skip_dem  = args.skipdem
+    run_err   = args.err
 
     # Tracking: key = (stage, item) → bool
     results_F = {}  # test → bool
@@ -89,11 +92,19 @@ def main():
     else:
         for test in tests:
             label = f"F  test {test:02d}"
-            ok = run(
-                [sys.executable, F_SCRIPT, str(test)],
-                cwd=SCRIPTS_PY,
-                label=label,
-            )
+            if run_err:
+                print(f"\n  Running faulty cases for diagnostic purposes.")
+                ok = run(
+                    [sys.executable, F_SCRIPT, str(test), '--err'],
+                    cwd=SCRIPTS_PY,
+                    label=label,
+                )
+            else:
+                ok = run(
+                    [sys.executable, F_SCRIPT, str(test)],
+                    cwd=SCRIPTS_PY,
+                    label=label,
+                )
             results_F[test] = ok
 
     # -----------------------------------------------------------------------

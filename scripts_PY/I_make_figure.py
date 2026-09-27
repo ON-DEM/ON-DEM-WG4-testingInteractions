@@ -9,7 +9,6 @@ Usage:
 
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import sys, math
 from pathlib import Path
 
@@ -52,7 +51,7 @@ def build_fault_curves(ana_err_dir, dem_err_dir, test_id, software_label):
     The analytical faulty reference (output_ANA_ERR, the legacy single
     ``theoretical_output_test_NN.json``) comes first if present, then any faulty
     DEM runs in output_DEM_ERR (``dem_output_<sw>_test_NN*.csv``, e.g. the
-    ``_noinit`` / ``_nobch`` variants for test 14). Colours are assigned in this
+    ``_noinit`` / ``_nobch`` variants for test 8). Colours are assigned in this
     order from FAULT_COLORS. Returns a list of ``{'data', 'color'}`` dicts (empty
     if there is nothing to overlay), so a test with no faulty files is unchanged.
     """
@@ -140,7 +139,7 @@ def compute_error_metrics(ana_data, dem_data):
     
     ER_i = sum(abs(x_dem_i - x_ana_i)) / t_max
     N = sum(abs(x_ana_i) + abs(x_ana_j)) / t_max
-    MAPE = 100 * ER_i / N
+    MAE = ER_i / N
     """
     
     # Ensure we're using the minimum length if they differ
@@ -266,7 +265,7 @@ def compute_error_metrics(ana_data, dem_data):
     return metrics
 
 
-def sci_str_latex(val, sig=3, thresh=1e-14):
+def sci_str_latex(val, sig=3, thresh=1e-16):
     """
     Return a LaTeX-formatted scientific notation string, e.g. "$1.23\\times10^{-04}$".
     - sig: significant digits (>=1).
@@ -319,31 +318,31 @@ def write_latex_table(metrics, test_id, software_label, output_dir):
         f.write(f"% Error metrics for Test {test_id} using {software_label}\n")
         f.write("\\begin{tabular}{lcc}\n")
         f.write("\\hline\n")
-        f.write("Quantity & MAPE$_i$ (\\%) & MAPE$_j$ (\\%) \\\\\n")
+        f.write("Quantity & MAE$_i$ (\\-) & MAE$_j$ (\\-) \\\\\n")
         f.write("\\hline\n")
         
         for name in ['Position', 'Velocity', 'Orientation', 'Angular velocity', 'Force', 'Torque']:
             m = metrics[name]
-            val_i = m['ER_NORM_i'] * 100
-            val_j = m['ER_NORM_j'] * 100
+            val_i = m['ER_NORM_i'] 
+            val_j = m['ER_NORM_j'] 
             
             # Format values, using scientific notation for very small numbers
-            #str_i = f"{val_i:.3g}" if val_i >= 1e-14 else r"$<10^{-14}$"
-            #str_j = f"{val_j:.3g}" if val_j >= 1e-14 else r"$<10^{-14}$"
-            str_i = sci_str_latex(val_i, sig=3, thresh=1e-14)
-            str_j = sci_str_latex(val_j, sig=3, thresh=1e-14)
+            #str_i = f"{val_i:.3g}" if val_i >= 1e-16 else r"$<10^{-16}$"
+            #str_j = f"{val_j:.3g}" if val_j >= 1e-16 else r"$<10^{-16}$"
+            str_i = sci_str_latex(val_i, sig=3, thresh=1e-16)
+            str_j = sci_str_latex(val_j, sig=3, thresh=1e-16)
             
             f.write(f"{quantity_latex[name]} & {str_i} & {str_j} \\\\\n")
         
         f.write("\\hline\n")
         
         # Force and torque balance
-        val_F = metrics['Force balance']['ER_NORM'] * 100
-        val_T = metrics['Torque balance']['ER_NORM'] * 100
-        #str_F = f"{val_F:.3g}" if val_F >= 1e-14 else r"$<10^{-14}$"
-        #str_T = f"{val_T:.3g}" if val_T >= 1e-14 else r"$<10^{-14}$"
-        str_F = sci_str_latex(val_F, sig=3, thresh=1e-14)
-        str_T = sci_str_latex(val_T, sig=3, thresh=1e-14)
+        val_F = metrics['Force balance']['ER_NORM'] 
+        val_T = metrics['Torque balance']['ER_NORM'] 
+        #str_F = f"{val_F:.3g}" if val_F >= 1e-16 else r"$<10^{-16}$"
+        #str_T = f"{val_T:.3g}" if val_T >= 1e-16 else r"$<10^{-16}$"
+        str_F = sci_str_latex(val_F, sig=3, thresh=1e-16)
+        str_T = sci_str_latex(val_T, sig=3, thresh=1e-16)
         
         f.write(f"Force imbalance & \\multicolumn{{2}}{{c}}{{{str_F}}} \\\\\n")
         f.write(f"Torque imbalance & \\multicolumn{{2}}{{c}}{{{str_T}}} \\\\\n")
@@ -724,35 +723,35 @@ def main():
     
     # Create figure based on test ID
     print("\nGenerating high-quality figure...")
-    if test_id in [1, 2]:
-        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
-                    fault_curves=fault_curves)
-    elif test_id == 3:
+    if test_id == 1:
+        # 3D force-space trajectory: axes are F_x, F_y, F_z (no time axis).
+        plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
+                         fault_curves=fault_curves)
+    elif test_id in [2, 3, 4, 8]:
+        # 3D torque-space trajectory: axes are T_x, T_y, T_z (no time axis).
+        plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
+                         quantity='T', fault_curves=fault_curves)
+    elif test_id == 5:
         plot_test_3d(ana_data, dem_data_ds, test_id, 'y', 'z', output_dir, software_label,
                      fault_curves=fault_curves)
-    elif test_id == 4:
+    elif test_id == 6:
         plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'y', output_dir, software_label,
                      fault_curves=fault_curves)
-    elif test_id == 5:
+    elif test_id == 7:
         plot_test_3d(ana_data, dem_data_ds, test_id, 'x', 'z', output_dir, software_label,
                      fault_curves=fault_curves)
-    elif test_id in [6, 7, 8, 9, 10, 11, 12]:
+    elif test_id in [9, 10]:
+        plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
+                    fault_curves=fault_curves)
+    elif test_id in [11, 12, 13, 14, 16, 17, 18]:
         # Force x vs time
         plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label,
                     fault_curves=fault_curves)
-    elif test_id == 13:
+    elif test_id == 15:
         # Torque x vs time: the physically meaningful signal for this test
         # is best observed in the torque rather than the force.
         plot_test_x(ana_data, dem_data_ds, test_id, output_dir, software_label, quantity='T',
                     fault_curves=fault_curves)
-    elif test_id == 15:
-        # 3D force-space trajectory: axes are F_x, F_y, F_z (no time axis).
-        plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
-                         fault_curves=fault_curves)
-    elif test_id in [14, 16, 17, 18]:
-        # 3D torque-space trajectory: axes are T_x, T_y, T_z (no time axis).
-        plot_test_3d_xyz(ana_data, dem_data_ds, test_id, output_dir, software_label,
-                         quantity='T', fault_curves=fault_curves)
     else:
         print(f"WARNING: No figure specification for Test {test_id}")
     

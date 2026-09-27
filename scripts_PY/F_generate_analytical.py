@@ -22,8 +22,8 @@ Nsteps = 1.0e4
 
 # Run the faulty / alternative versions of the tests?
 # Enable with --err on the command line, e.g.  python F_generate_analytical.py 1 --err
-doERR = ('--err' in sys.argv)
-
+#doERR = ('--err' in sys.argv)
+doERR = True
 # Size parameters
 R_i = 1.0
 R_j = 1.0
@@ -64,33 +64,81 @@ contact_params = {'k_n':    1.0e7,
 # Generate velocities and motion profile
 # Set the phase to pi to start with approach
 if testID == 1:
-    # Tangential elastic response
+    # Complex shearing motion
+    contact_params['eta_s'] = 0.5e7
     motion = my_analytical_motion(
-        [0,0,0],[0,0,0],[0,0,0], # initial pos, vel, ang vel
+        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
         [0,0,0,1.0], [0,0,0,1.0], # initial ori
-        0, 0, 0, 0, 0, [0,0,1.96*R], # normal loading, initial branch
-        0, 0, 0, 0, 0, # twist
-        0, 0, 0, 0, 0, # roll
-        0, 0.02*R, 1.0, 0, 0, # shear
-        [1.0,0,0], [0,1.0,0], # roll and shear axes
+        0, 0.01*R, 1.0, 0, -0.1, [0,0,1.97*R],    # normal loading, initial branch
+        0, np.pi, 1.0, 0, -0.1,         # twist
+        0, np.pi, 1.0, 0, -0.1,         # roll
+        0, 0.5*R, 1.0, 0, -0.1,         # shear
+        [1.0,0,0], [0,1.0,0],           # roll and shear axes
         tmax, dt, # time
         R_i, R_j
     )
 elif testID == 2:
-    # Tangential plastic response
+    # Complex rolling motion
+    contact_params['k_s'] = 0.0
+    contact_params['k_r'] = 0.25e7
+    contact_params['eta_r'] = 0.5e7
     motion = my_analytical_motion(
-        [0,0,0],[0,0,0],[0,0,0], # initial pos, vel, ang vel
-        [0,0,0,1.0], [0,0,0,1.0], # initial ori
-        0, 0, 0, 0, 0, [0,0,1.96*R], # normal loading, initial branch
-        0, 0, 0, 0, 0, # twist
-        0, 0, 0, 0, 0, # roll
-        0, 0.08*R, 1.0, 0, 0, # shear
-        [1.0,0,0], [0,1.0,0], # roll and shear axes
-        tmax, dt, # time
+        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0],       # tilt rigid-body rotation (ω_f along x)  with 0.2 around the y axis is quite nice
+        [0,0,0,1.0], [0,0,0,1.0],       # initial orientations
+        0, 0.01*R, 1.0, 0, -0.1, [0,0,1.97*R],    # constant contact # [0,1.96*R,0],
+        0, np.pi, 1.0, 0, -0.1,         # twist
+        0, np.pi, 1.0, 0, -0.1,         # roll
+        0, 0.5*R, 1.0, 0, -0.1,         # shear
+        [1.0,0,0], [0,1.0,0],           # roll and shear axes # [0,0,1.0], [1.0,0,0],
+        tmax, dt,
         R_i, R_j
     )
 elif testID == 3:
-    # Out-of-plane tangent force rotation
+    # Complex twisting motion
+    contact_params['k_s'] = 0.0
+    contact_params['k_t'] = 0.50e7
+    contact_params['eta_t'] = 0.5e7
+    motion = my_analytical_motion(
+        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
+        [0,0,0,1.0], [0,0,0,1.0],       # initial orientations
+        0, 0.01*R, 1.0, 0, -0.1, [1.97*R,0,0],    # constant contact #0, 0, 0, 0, 0, [0,0,1.96*R],
+        0, np.pi, 1.0, 0, -0.1,         # twist
+        0, np.pi, 1.0, 0, -0.1,         # roll
+        0, 0.5*R, 1.0, 0, -0.1,         # shear
+        [0,0,1.0], [0,1.0,0],           # roll and shear axes (needed for orientation) # [1.0,0,0], [0,1.0,0],
+        tmax, dt,
+        R_i, R_j
+    )
+elif testID == 4:
+    # Complex combined motion
+    #
+    # F_n = k_n * u_n = 1e7 * 0.05 = 5e5 N  →  Coulomb limit = mu * F_n = 2.5e5 N.
+    # Each mode amplitude is chosen so that its peak force stays well below Coulomb/3:
+    #   Shear: F_s_max = k_s * (B_s/w) = 5e6 * 0.01 = 5.0e4 N  << Coulomb/3
+    #   Roll:  F_r_max = k_r * (B_r/w) = 2.5e6 * 0.01 = 2.5e4 N << Coulomb/3
+    #   Twist: T_t_max = k_t * (B_t/w) = 2.5e6 * 0.01 = 2.5e4 N·m (torque) << limit
+    # Phase offsets (0, pi/2, pi) keep the mode maxima from coinciding, ensuring the
+    # combined response stays elastic at all times.
+    #
+    # Should go in and out of elastic / plastic regime as well as in and out of contact.
+    contact_params['eta_s'] = 0.5e7
+    contact_params['k_r'] = 0.25e7
+    contact_params['eta_r'] = 0.5e7
+    contact_params['k_t'] = 0.25e7
+    contact_params['eta_t'] = 0.5e7
+    motion = my_analytical_motion(
+        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
+        [0,0,0,1.0], [0,0,0,1.0],           # initial orientations
+        0, 0.01*R, 1.0, 0, -0.1, [0,0,1.97*R],        # constant contact (u_n = 0.05)
+        0, 1.0, 1.0, 0, 0,                  # twist: phi=0
+        0, 1.0, 1.0, np.pi/2, 0,            # roll: phi=pi/2, 90 deg out of phase
+        0, 0.5*R, 1.0, np.pi, 0,            # shear: phi=pi, 180 deg out of phase
+        [1.0,0,0], [0,1.0,0],               # roll and shear axes
+        tmax, dt,
+        R_i, R_j
+    )
+elif testID == 5:
+    # Out-of-plane tangent force rotation (tilt)
     motion = my_analytical_motion(
         [0,0,0],[0,0,0],[1.0,0,0], # initial pos, vel, ang vel
         [0,0,0,1.0], [0,0,0,1.0], # initial ori
@@ -102,8 +150,8 @@ elif testID == 3:
         tmax, dt, # time
         R_i, R_j
     )
-elif testID == 4:
-    # In-plane tangent force rotation
+elif testID == 6:
+    # In-plane tangent force rotation (spin)
     motion = my_analytical_motion(
         [0,0,0],[0,0,0],[0,0,1.0], # initial pos, vel, ang vel
         [0,0,0,1.0], [0,0,0,1.0], # initial ori
@@ -115,7 +163,7 @@ elif testID == 4:
         tmax, dt, # time
         R_i, R_j
     )
-elif testID == 5:
+elif testID == 7:
     # Carnot cycle: approach-load, shear forward at high load, unload, shear back at low load
     # Period = 3π, two complete cycles in tmax = 6π
     # Normal: oscillate between approach and unload
@@ -134,7 +182,47 @@ elif testID == 5:
         tmax, dt, # time
         R_i, R_j
     )
-elif testID == 6:
+elif testID == 8:
+    # Non-commutativity correction (twist example, but also a problem in roll)
+    contact_params['k_t'] = 0.50e7
+    motion = my_analytical_motion(
+        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
+        [0,0,0,1.0], [0,0,0,1.0],       # initial orientations
+        0, 0, 0, 0, 0, [1.96*R,0,0],    # constant contact #0, 0, 0, 0, 0, [0,0,1.96*R],
+        0, np.pi, 1.0, 0, -0.1,         # twist
+        0, np.pi, 1.0, 0, -0.1,         # roll
+        0,0,0,0,0,#0, 0.5*R, 1.0, 0, -0.1,         # shear
+        [0,0,1.0], [0,1.0,0],           # roll and shear axes (needed for orientation) # [1.0,0,0], [0,1.0,0],
+        tmax, dt,
+        R_i, R_j
+    )
+elif testID == 9:
+    # Tangential elastic response
+    motion = my_analytical_motion(
+        [0,0,0],[0,0,0],[0,0,0], # initial pos, vel, ang vel
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
+        0, 0, 0, 0, 0, [0,0,1.96*R], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0, 0.02*R, 1.0, 0, 0, # shear
+        [1.0,0,0], [0,1.0,0], # roll and shear axes
+        tmax, dt, # time
+        R_i, R_j
+    )
+elif testID == 10:
+    # Tangential plastic response
+    motion = my_analytical_motion(
+        [0,0,0],[0,0,0],[0,0,0], # initial pos, vel, ang vel
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
+        0, 0, 0, 0, 0, [0,0,1.96*R], # normal loading, initial branch
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0, 0.08*R, 1.0, 0, 0, # shear
+        [1.0,0,0], [0,1.0,0], # roll and shear axes
+        tmax, dt, # time
+        R_i, R_j
+    )
+elif testID == 11:
     # Purely repulsive viscous force
     # Normal: oscillate between approach and separation, crossing u_n = 0 at t = 0, π, 2π, ...
     motion = my_analytical_motion(
@@ -151,58 +239,7 @@ elif testID == 6:
     contact_params['armKn']   = [4.0e7]
     contact_params['armEtan'] = [1.0e7]
     # contact_params['eta_n'] = 1.0e7 # If dashpot instead of Maxwell arm.
-elif testID == 7:
-    # Limit force properly instead of velocity.
-    motion = my_analytical_motion(
-        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
-        [0,0,0,1.0], [0,0,0,1.0], # initial ori
-        0, 0.03*R, 1.0, 0, 0, [-1.999*R,0.0,0.0],
-        0, 0, 0, 0, 0, # twist
-        0, 0, 0, 0, 0, # roll
-        0, 0, 0, 0, 0, # shear (none)
-        [0.0,0.0,1.0], [0.0,1.0,0.0], # roll and shear axes
-        tmax, dt, # time
-        R_i, R_j
-    )
-    contact_params['armKn']   = [4.0e7]
-    contact_params['armEtan'] = [1.0e7]
-    # contact_params['eta_n'] = 1.0e7 # If dashpot instead of Maxwell arm.
-elif testID == 8:
-    # Continuity (C0) of viscous force at u_n = 0
-    # A non-C0 implementation produces a force jump of magnitude eta_n*v_max at each crossing:
-    # upon approach (v_n < 0): F_n jumps from 0 to +eta_n*v_max as soon as u_n = 0+.
-    # upon separation (v_n > 0): F_n would jump from -eta_n*v_max to 0 at u_n = 0+ if uncapped.
-    # Either jump causes accelerations that are independent of time-step size (CFL broken).
-    motion = my_analytical_motion(
-        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
-        [0,0,0,1.0], [0,0,0,1.0], # initial ori
-        0, 0.04*R, 1.0, 0, 0, [-2.02*R,0.0,0.0], # maximum speed at contact-boundary crossings
-        0, 0, 0, 0, 0, # twist
-        0, 0, 0, 0, 0, # roll
-        0, 0, 0, 0, 0, # shear (none)
-        [0.0,0.0,1.0], [0.0,1.0,0.0], # roll and shear axes
-        tmax, dt, # time
-        R_i, R_j
-    )
-    contact_params['armKn']   = [4.0e7]
-    contact_params['armEtan'] = [1.0e7]
-    # contact_params['eta_n'] = 1.0e7 # If dashpot instead of Maxwell arm.
-elif testID == 9:
-    # Preservation of viscoelastic memory upon loss of contact
-    motion = my_analytical_motion(
-        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
-        [0,0,0,1.0], [0,0,0,1.0], # initial ori
-        0, 0.04*R, 2.0, 0, -0.05, [-2.01*R,0.0,0.0], # maximum speed at contact-boundary crossings
-        0, 0, 0, 0, 0, # twist
-        0, 0, 0, 0, 0, # roll
-        0, 0, 0, 0, 0, # shear (none)
-        [0.0,0.0,1.0], [0.0,1.0,0.0], # roll and shear axes
-        tmax, dt, # time
-        R_i, R_j
-    )
-    contact_params['armKn']   = [0.2e7]
-    contact_params['armEtan'] = [1.0e7]
-elif testID == 10:
+elif testID == 12:
     # Independence of shear displacement from viscosity
     # Trajectory is identical to test 1; only eta_s differs (see contact_params below).
     # The shear displacement u_s must accumulate from v_s alone:
@@ -226,7 +263,7 @@ elif testID == 10:
     # about 1% of the elastic peak. Small enough to keep the test in the elastic regime
     # but large enough for accumulation errors to be visible over many cycles.
     contact_params['eta_s'] = 1.0e6
-elif testID == 11:
+elif testID == 13:
     # Consistency in application of Coulomb limit
     # Tests whether the Coulomb limit is applied to the total tangential force
     # (elastic + viscous combined) rather than the elastic part alone.
@@ -243,7 +280,7 @@ elif testID == 11:
     )
     # The elastic component alone does not surpass the Coulomb limit, only with the viscous part.
     contact_params['eta_s'] = 1.0e7
-elif testID == 12:
+elif testID == 14:
     # Dependence of force on particle size
     # kn = E * R so kn = L*kn, and to keep overlap (strain) similar we have u/R constant, so u -> L*u
     # Fn = L^2*kn is expected for similarity or proper size scaling.
@@ -266,7 +303,7 @@ elif testID == 12:
         tmax, dt,
         R_i, R_j
     )
-elif testID == 13:
+elif testID == 15:
     # Distinction between rolling and bending
     R_i = 2.0    # large particle
     R_j = 0.2    # small particle  (size ratio 10:1)
@@ -286,96 +323,65 @@ elif testID == 13:
         tmax, dt,
         R_i, R_j
     )
-elif testID == 14:
-    # Non-commutativity correction (twist example, but also a problem in roll)
-    contact_params['k_t'] = 0.50e7
+# Not presented in the paper, but nonetheless interesting tests
+elif testID == 16:
+    # Limit force properly instead of velocity.
     motion = my_analytical_motion(
-        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
-        [0,0,0,1.0], [0,0,0,1.0],       # initial orientations
-        0, 0, 0, 0, 0, [1.96*R,0,0],    # constant contact #0, 0, 0, 0, 0, [0,0,1.96*R],
-        0, np.pi, 1.0, 0, -0.1,         # twist
-        0, np.pi, 1.0, 0, -0.1,         # roll
-        0,0,0,0,0,#0, 0.5*R, 1.0, 0, -0.1,         # shear
-        [0,0,1.0], [0,1.0,0],           # roll and shear axes (needed for orientation) # [1.0,0,0], [0,1.0,0],
-        tmax, dt,
-        R_i, R_j
-    )
-elif testID == 15:
-    # Complex shearing motion
-    motion = my_analytical_motion(
-        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
         [0,0,0,1.0], [0,0,0,1.0], # initial ori
-        0, 0.01*R, 1.0, 0, -0.1, [0,0,1.97*R],    # normal loading, initial branch
-        0, np.pi, 1.0, 0, -0.1,         # twist
-        0, np.pi, 1.0, 0, -0.1,         # roll
-        0, 0.5*R, 1.0, 0, -0.1,         # shear
-        [1.0,0,0], [0,1.0,0],           # roll and shear axes
+        0, 0.03*R, 1.0, 0, 0, [-1.999*R,0.0,0.0],
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0, 0, 0, 0, 0, # shear (none)
+        [0.0,0.0,1.0], [0.0,1.0,0.0], # roll and shear axes
         tmax, dt, # time
         R_i, R_j
     )
-elif testID == 16:
-    # Complex rolling motion
-    contact_params['k_s'] = 0.0
-    contact_params['k_r'] = 0.25e7
-    motion = my_analytical_motion(
-        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0],       # tilt rigid-body rotation (ω_f along x)  with 0.2 around the y axis is quite nice
-        [0,0,0,1.0], [0,0,0,1.0],       # initial orientations
-        0, 0.01*R, 1.0, 0, -0.1, [0,0,1.97*R],    # constant contact # [0,1.96*R,0],
-        0, np.pi, 1.0, 0, -0.1,         # twist
-        0, np.pi, 1.0, 0, -0.1,         # roll
-        0, 0.5*R, 1.0, 0, -0.1,         # shear
-        [1.0,0,0], [0,1.0,0],           # roll and shear axes # [0,0,1.0], [1.0,0,0],
-        tmax, dt,
-        R_i, R_j
-    )
+    contact_params['armKn']   = [4.0e7]
+    contact_params['armEtan'] = [1.0e7]
+    # contact_params['eta_n'] = 1.0e7 # If dashpot instead of Maxwell arm.
 elif testID == 17:
-    # Complex twisting motion
-    contact_params['k_s'] = 0.0
-    contact_params['k_t'] = 0.50e7
+    # Continuity (C0) of viscous force at u_n = 0
+    # A non-C0 implementation produces a force jump of magnitude eta_n*v_max at each crossing:
+    # upon approach (v_n < 0): F_n jumps from 0 to +eta_n*v_max as soon as u_n = 0+.
+    # upon separation (v_n > 0): F_n would jump from -eta_n*v_max to 0 at u_n = 0+ if uncapped.
+    # Either jump causes accelerations that are independent of time-step size (CFL broken).
     motion = my_analytical_motion(
-        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
-        [0,0,0,1.0], [0,0,0,1.0],       # initial orientations
-        0, 0.01*R, 1.0, 0, -0.1, [1.97*R,0,0],    # constant contact #0, 0, 0, 0, 0, [0,0,1.96*R],
-        0, np.pi, 1.0, 0, -0.1,         # twist
-        0, np.pi, 1.0, 0, -0.1,         # roll
-        0, 0.5*R, 1.0, 0, -0.1,         # shear
-        [0,0,1.0], [0,1.0,0],           # roll and shear axes (needed for orientation) # [1.0,0,0], [0,1.0,0],
-        tmax, dt,
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
+        0, 0.04*R, 1.0, 0, 0, [-2.02*R,0.0,0.0], # maximum speed at contact-boundary crossings
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0, 0, 0, 0, 0, # shear (none)
+        [0.0,0.0,1.0], [0.0,1.0,0.0], # roll and shear axes
+        tmax, dt, # time
         R_i, R_j
     )
+    contact_params['armKn']   = [4.0e7]
+    contact_params['armEtan'] = [1.0e7]
+    # contact_params['eta_n'] = 1.0e7 # If dashpot instead of Maxwell arm.
 elif testID == 18:
-    # Complex combined motion
-    #
-    # F_n = k_n * u_n = 1e7 * 0.05 = 5e5 N  →  Coulomb limit = mu * F_n = 2.5e5 N.
-    # Each mode amplitude is chosen so that its peak force stays well below Coulomb/3:
-    #   Shear: F_s_max = k_s * (B_s/w) = 5e6 * 0.01 = 5.0e4 N  << Coulomb/3
-    #   Roll:  F_r_max = k_r * (B_r/w) = 2.5e6 * 0.01 = 2.5e4 N << Coulomb/3
-    #   Twist: T_t_max = k_t * (B_t/w) = 2.5e6 * 0.01 = 2.5e4 N·m (torque) << limit
-    # Phase offsets (0, pi/2, pi) keep the mode maxima from coinciding, ensuring the
-    # combined response stays elastic at all times.
-    #
-    # Should go in and out of elastic / plastic regime as well as in and out of contact.
-    contact_params['k_r'] = 0.25e7
-    contact_params['k_t'] = 0.25e7
+    # Preservation of viscoelastic memory upon loss of contact
     motion = my_analytical_motion(
-        [1.0,1.0,1.0],[1.0,1.0,1.0],[1.0,1.0,1.0], # initial pos, vel, ang vel
-        [0,0,0,1.0], [0,0,0,1.0],           # initial orientations
-        0, 0.01*R, 1.0, 0, -0.1, [0,0,1.97*R],        # constant contact (u_n = 0.05)
-        0, 1.0, 1.0, 0, 0,                  # twist: phi=0
-        0, 1.0, 1.0, np.pi/2, 0,            # roll: phi=pi/2, 90 deg out of phase
-        0, 0.5*R, 1.0, np.pi, 0,            # shear: phi=pi, 180 deg out of phase
-        [1.0,0,0], [0,1.0,0],               # roll and shear axes
-        tmax, dt,
+        [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0], # initial pos, vel, ang vel
+        [0,0,0,1.0], [0,0,0,1.0], # initial ori
+        0, 0.04*R, 2.0, 0, -0.05, [-2.01*R,0.0,0.0], # maximum speed at contact-boundary crossings
+        0, 0, 0, 0, 0, # twist
+        0, 0, 0, 0, 0, # roll
+        0, 0, 0, 0, 0, # shear (none)
+        [0.0,0.0,1.0], [0.0,1.0,0.0], # roll and shear axes
+        tmax, dt, # time
         R_i, R_j
     )
-
+    contact_params['armKn']   = [0.2e7]
+    contact_params['armEtan'] = [1.0e7]
 
 
 # Simulate contact interaction
 if not doERR:
     # Tests 6 and 8 use the Maxwell arm normal force (spring + series dashpot, repulsive only).
     # All other tests use the standard parallel spring-dashpot.
-    Fn_func = Fn_spring_dashpot_maxwell if testID in (6, 7, 8, 9) else Fn_spring_dashpot
+    Fn_func = Fn_spring_dashpot_maxwell if testID in (11, 16, 17, 18) else Fn_spring_dashpot
     results = my_analytical_contact(
         motion,
         contact_params,
@@ -386,81 +392,22 @@ if not doERR:
         Tb_spring_dashpot_Coulomb
         )
 else:
-    if testID == 1:
+    if (testID == 5) or (testID == 6):
         results = my_analytical_contact(
             motion,
             contact_params,
             Fn_spring_dashpot,
-            Fs_fail_test_1,
-            Tr_spring_dashpot_Coulomb,
-            Tt_spring_dashpot_Coulomb,
-            Tb_spring_dashpot_Coulomb
-            )
-    elif testID == 2:
-        results = my_analytical_contact(
-            motion,
-            contact_params,
-            Fn_spring_dashpot,
-            Fs_fail_test_2,
-            Tr_spring_dashpot_Coulomb,
-            Tt_spring_dashpot_Coulomb,
-            Tb_spring_dashpot_Coulomb
-            )
-    elif (testID == 3) or (testID == 4):
-        results = my_analytical_contact(
-            motion,
-            contact_params,
-            Fn_spring_dashpot,
-            Fs_fail_test_3_4,
-            Tr_spring_dashpot_Coulomb,
-            Tt_spring_dashpot_Coulomb,
-            Tb_spring_dashpot_Coulomb
-            )
-    elif testID == 5:
-        results = my_analytical_contact(
-            motion,
-            contact_params,
-            Fn_spring_dashpot,
-            Fs_fail_test_5,
-            Tr_spring_dashpot_Coulomb,
-            Tt_spring_dashpot_Coulomb,
-            Tb_spring_dashpot_Coulomb
-            )
-    elif testID == 6:
-        #contact_params['armKn']   = [0.0]
-        #contact_params['armEtan'] = [0.0]
-        #contact_params['eta_n'] = 1.0e7
-        results = my_analytical_contact(
-            motion,
-            contact_params,
-            Fn_fail_test_6,
-            Fs_spring_dashpot_Coulomb,
+            Fs_fail_test_5_6,
             Tr_spring_dashpot_Coulomb,
             Tt_spring_dashpot_Coulomb,
             Tb_spring_dashpot_Coulomb
             )
     elif testID == 7:
-        #contact_params['armKn']   = [0.0]
-        #contact_params['armEtan'] = [0.0]
-        #contact_params['eta_n'] = 1.0e7
-        results = my_analytical_contact(
-            motion,
-            contact_params,
-            Fn_fail_test_7,
-            Fs_spring_dashpot_Coulomb,
-            Tr_spring_dashpot_Coulomb,
-            Tt_spring_dashpot_Coulomb,
-            Tb_spring_dashpot_Coulomb
-            )
-    elif testID == 8:
-        contact_params['armKn']   = [0.0]
-        contact_params['armEtan'] = [0.0]
-        contact_params['eta_n'] = 1.0e7
         results = my_analytical_contact(
             motion,
             contact_params,
             Fn_spring_dashpot,
-            Fs_spring_dashpot_Coulomb,
+            Fs_fail_test_7,
             Tr_spring_dashpot_Coulomb,
             Tt_spring_dashpot_Coulomb,
             Tb_spring_dashpot_Coulomb
@@ -469,8 +416,8 @@ else:
         results = my_analytical_contact(
             motion,
             contact_params,
-            Fn_fail_test_9,
-            Fs_spring_dashpot_Coulomb,
+            Fn_spring_dashpot,
+            Fs_fail_test_9,
             Tr_spring_dashpot_Coulomb,
             Tt_spring_dashpot_Coulomb,
             Tb_spring_dashpot_Coulomb
@@ -486,16 +433,39 @@ else:
             Tb_spring_dashpot_Coulomb
             )
     elif testID == 11:
+        #contact_params['armKn']   = [0.0]
+        #contact_params['armEtan'] = [0.0]
+        #contact_params['eta_n'] = 1.0e7
         results = my_analytical_contact(
             motion,
             contact_params,
-            Fn_spring_dashpot,
-            Fs_fail_test_11,
+            Fn_fail_test_11,
+            Fs_spring_dashpot_Coulomb,
             Tr_spring_dashpot_Coulomb,
             Tt_spring_dashpot_Coulomb,
             Tb_spring_dashpot_Coulomb
             )
     elif testID == 12:
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_spring_dashpot,
+            Fs_fail_test_12,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    elif testID == 13:
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_spring_dashpot,
+            Fs_fail_test_13,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    elif testID == 14:
         # Putting these back to their original values
         contact_params['k_n'] /= scale
         contact_params['k_s'] /= scale
@@ -508,7 +478,7 @@ else:
             Tt_spring_dashpot_Coulomb,
             Tb_spring_dashpot_Coulomb
             )
-    elif testID == 13:
+    elif testID == 15:
         Reff = 2.0*(contact_params['R_i'] * contact_params['R_j']) / (contact_params['R_i'] + contact_params['R_j'])
         contact_params['k_b'] = contact_params['k_r'] * (Reff ** 2)
         contact_params['k_r'] = 0.0
@@ -521,6 +491,44 @@ else:
             Tt_spring_dashpot_Coulomb,
             Tb_spring_dashpot_Coulomb
             )
+# Not presented in the paper, but nonetheless interesting tests
+    elif testID == 16:
+        #contact_params['armKn']   = [0.0]
+        #contact_params['armEtan'] = [0.0]
+        #contact_params['eta_n'] = 1.0e7
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_fail_test_16,
+            Fs_spring_dashpot_Coulomb,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    elif testID == 17:
+        contact_params['armKn']   = [0.0]
+        contact_params['armEtan'] = [0.0]
+        contact_params['eta_n'] = 1.0e7
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_spring_dashpot,
+            Fs_spring_dashpot_Coulomb,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+    elif testID == 18:
+        results = my_analytical_contact(
+            motion,
+            contact_params,
+            Fn_fail_test_18,
+            Fs_spring_dashpot_Coulomb,
+            Tr_spring_dashpot_Coulomb,
+            Tt_spring_dashpot_Coulomb,
+            Tb_spring_dashpot_Coulomb
+            )
+# All other cases
     else:
         print(f"\n  No faulty case for this test, running regular case.")
         results = my_analytical_contact(
@@ -550,7 +558,7 @@ if not doERR:
 else:
     dict_to_json(results,'../output_ANA_ERR/theoretical_output_'+testname+'.json')
 
-# Plotting is obsolete here, dealt with in other scripts.
+# Plotting is obsolete here, dealt with in other scripts, but kept for completeness and standalone functionality.
 if doPlot:
     # Plotting motion
     plt.figure(0)

@@ -1,16 +1,16 @@
 % Error metrics for Test 9 using YADE
 \begin{tabular}{lcc}
 \hline
-Quantity & MAPE$_i$ (\%) & MAPE$_j$ (\%) \\
+Quantity & MAE$_i$ (\-) & MAE$_j$ (\-) \\
 \hline
-Position $\vec{x}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
-Velocity $\vec{v}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
-Orientation $\vec{q}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
-Ang. velocity $\vec{\omega}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
-Force $\vec{F}$ & $2.76\times10^{-2}$ & $2.76\times10^{-2}$ \\
-Torque $\vec{T}$ & $<1.0\times10^{-14}$ & $<1.0\times10^{-14}$ \\
+Position $\vec{x}$ & $<1.0\times10^{-16}$ & $<1.0\times10^{-16}$ \\
+Velocity $\vec{v}$ & $<1.0\times10^{-16}$ & $<1.0\times10^{-16}$ \\
+Orientation $\vec{q}$ & $1.13\times10^{-3}$ & $1.13\times10^{-3}$ \\
+Ang. velocity $\vec{\omega}$ & $<1.0\times10^{-16}$ & $<1.0\times10^{-16}$ \\
+Force $\vec{F}$ & $1.95\times10^{-7}$ & $1.95\times10^{-7}$ \\
+Torque $\vec{T}$ & $8.14\times10^{-7}$ & $8.14\times10^{-7}$ \\
 \hline
-Force imbalance & \multicolumn{2}{c}{$<1.0\times10^{-14}$} \\
-Torque imbalance & \multicolumn{2}{c}{$<1.0\times10^{-14}$} \\
+Force imbalance & \multicolumn{2}{c}{$<1.0\times10^{-16}$} \\
+Torque imbalance & \multicolumn{2}{c}{$<1.0\times10^{-16}$} \\
 \hline
 \end{tabular}

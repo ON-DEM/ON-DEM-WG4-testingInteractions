@@ -22,8 +22,9 @@ Nsteps = 1.0e4
 
 # Run the faulty / alternative versions of the tests?
 # Enable with --err on the command line, e.g.  python F_generate_analytical.py 1 --err
-#doERR = ('--err' in sys.argv)
-doERR = True
+doERR = ('--err' in sys.argv)
+#doERR = True
+
 # Size parameters
 R_i = 1.0
 R_j = 1.0
@@ -236,9 +237,10 @@ elif testID == 11:
         tmax, dt, # time
         R_i, R_j
     )
-    contact_params['armKn']   = [4.0e7]
-    contact_params['armEtan'] = [1.0e7]
-    # contact_params['eta_n'] = 1.0e7 # If dashpot instead of Maxwell arm.
+    # contact_params['armKn']   = [4.0e7] # If Maxwell arm instead of dashpot.
+    # contact_params['armEtan'] = [1.0e7] # If Maxwell arm instead of dashpot.
+    contact_params['eta_n'] = 1.0e7 # If dashpot instead of Maxwell arm.
+    # Without Maxwell arm, will have a discontinuity at the start...
 elif testID == 12:
     # Independence of shear displacement from viscosity
     # Trajectory is identical to test 1; only eta_s differs (see contact_params below).
@@ -381,7 +383,7 @@ elif testID == 18:
 if not doERR:
     # Tests 6 and 8 use the Maxwell arm normal force (spring + series dashpot, repulsive only).
     # All other tests use the standard parallel spring-dashpot.
-    Fn_func = Fn_spring_dashpot_maxwell if testID in (11, 16, 17, 18) else Fn_spring_dashpot
+    Fn_func = Fn_spring_dashpot_maxwell if testID in (16, 17, 18) else Fn_spring_dashpot
     results = my_analytical_contact(
         motion,
         contact_params,
@@ -433,9 +435,9 @@ else:
             Tb_spring_dashpot_Coulomb
             )
     elif testID == 11:
-        #contact_params['armKn']   = [0.0]
-        #contact_params['armEtan'] = [0.0]
-        #contact_params['eta_n'] = 1.0e7
+        # contact_params['armKn']   = [4.0e7] # If Maxwell arm instead of dashpot.
+        # contact_params['armEtan'] = [1.0e7] # If Maxwell arm instead of dashpot.
+        contact_params['eta_n'] = 1.0e7 # If dashpot instead of Maxwell arm.
         results = my_analytical_contact(
             motion,
             contact_params,

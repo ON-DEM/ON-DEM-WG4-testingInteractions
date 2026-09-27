@@ -654,8 +654,18 @@ def Fn_fail_test_11(contact_params, motions):
     so the only difference from the correct model is the missing max(0, ...) clip.
     """
     k_n     = contact_params['k_n']
-    k_arm   = contact_params.get('armKn',   [0.0])[0]
-    eta_arm = contact_params.get('armEtan', [0.0])[0]
+    try:
+        eta_n   = contact_params['eta_n']
+    except:
+        eta_n   = 0.0
+    try:
+        k_arm   = contact_params.get('armKn',   [0.0])[0]
+    except:
+        k_arm   = 0.0
+    try:
+        eta_arm = contact_params.get('armEtan', [0.0])[0]
+    except:
+        eta_arm = 0.0
     u_n     = motions['u_n'].reshape(-1)
     v_ijn   = motions['v_ijn']
     n_ij    = motions['n_ij']
@@ -679,7 +689,7 @@ def Fn_fail_test_11(contact_params, motions):
 
         if active[i]:
             # Fail: do NOT clip to repulsive — tensile total force is allowed
-            Fn_mag[i] = k_n * u_n[i] + arm_force
+            Fn_mag[i] = k_n * u_n[i] + eta_n * v_n[i] + arm_force
 
     Fn = -Fn_mag[:, None] * n_ij
     return Fn

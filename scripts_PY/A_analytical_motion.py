@@ -57,8 +57,8 @@ def my_analytical_motion(
     A, B, w, phi, k : scalars
         Parameters of the loading velocity function, in order:
         Constant offset, amplitude, frequency, phase, and damping.
-        The _t, _r, and _s indicate the twist, roll, and shear 
-        angular velocity functions.
+        The _t, _r, and _s indicate the twist (angular), roll (linear),
+        and shear (linear) velocity functions.
     l0 : (3,) vector
         Initial branch vector.
     n_r, n_s : (3,) vectors
@@ -193,12 +193,12 @@ def my_analytical_motion(
 
         # Angular velocities (Eq. 23)
         o_t = A_t - B_t * np.sin(w_t * tarr + phi_t) * np.exp(k_t * tarr)
-        o_r = A_r - B_r * np.sin(w_r * tarr + phi_r) * np.exp(k_r * tarr)
-        o_s = A_s - B_s * np.sin(w_s * tarr + phi_s) * np.exp(k_s * tarr)
+        o_r = A_r - B_r * np.sin(w_r * tarr + phi_r) * np.exp(k_r * tarr) # Actually a linear velocity, but converted below with 1/R.
+        o_s = A_s - B_s * np.sin(w_s * tarr + phi_s) * np.exp(k_s * tarr) # Actually a linear velocity, but converted below with 1/R.
         wi = (omega_f[None, :] + 0.5 * o_t[:, None] * n
-              + (0.5/R_i) * o_r[:, None] * nrr + (0.5/R_i) * o_s[:, None] * nrs)
+              + (1.0/R_i) * o_r[:, None] * nrr + (0.5/R_i) * o_s[:, None] * nrs)
         wj = (omega_f[None, :] - 0.5 * o_t[:, None] * n
-              - (0.5/R_j) * o_r[:, None] * nrr + (0.5/R_j) * o_s[:, None] * nrs)
+              - (1.0/R_j) * o_r[:, None] * nrr + (0.5/R_j) * o_s[:, None] * nrs)
         return vi, vj, wi, wj
 
     def _rotated_integral(d0, A_x, B_x, w_x, psi_x, k_x, t_a, t_b):
@@ -278,17 +278,17 @@ def my_analytical_motion(
 
     # Angular velocities (Eq. 23)
     omegar_t = A_t - B_t * np.sin(w_t * t + phi_t) * np.exp(k_t * t)
-    omegar_r = A_r - B_r * np.sin(w_r * t + phi_r) * np.exp(k_r * t)
-    omegar_s = A_s - B_s * np.sin(w_s * t + phi_s) * np.exp(k_s * t)
+    omegar_r = A_r - B_r * np.sin(w_r * t + phi_r) * np.exp(k_r * t) # Actually linear velocity, but converted below with 1/R.
+    omegar_s = A_s - B_s * np.sin(w_s * t + phi_s) * np.exp(k_s * t) # Actually linear velocity, but converted below with 1/R.
     omega_i = (omega_f[None, :] + 0.5 * omegar_t[:, None] * n_ij
-               + (0.5/R_i) * omegar_r[:, None] * nr_r + (0.5/R_i) * omegar_s[:, None] * nr_s)
+               + (1.0/R_i) * omegar_r[:, None] * nr_r + (0.5/R_i) * omegar_s[:, None] * nr_s)
     omega_j = (omega_f[None, :] - 0.5 * omegar_t[:, None] * n_ij
-               - (0.5/R_j) * omegar_r[:, None] * nr_r + (0.5/R_j) * omegar_s[:, None] * nr_s)
+               - (1.0/R_j) * omegar_r[:, None] * nr_r + (0.5/R_j) * omegar_s[:, None] * nr_s)
 
     # Twist, roll, and shear velocities (Eq. 18 and 20)
     omega_t = omegar_t[:, None] * n_ij
-    v_r = omegar_r[:, None] * np.cross(nr_r, n_ij)
-    v_s = omegar_s[:, None] * np.cross(nr_s, n_ij)
+    v_r = omegar_r[:, None] * np.cross(nr_r, n_ij) # Already linear.
+    v_s = omegar_s[:, None] * np.cross(nr_s, n_ij) # Already linear.
     omega_b = omega_i - omega_j - omega_t
 
     # Exact analytical half-step velocities v(t_k - dt/2), evaluated in closed form for
@@ -328,8 +328,8 @@ def my_analytical_motion(
     du_s[1:]     = Jc_s
 
     # Exact per-particle rotation increments (int omega dtau); used only for bending
-    dth_i = omega_f[None, :] * dt + 0.5 * J_t + (0.5/R_i) * J_r + (0.5/R_i) * J_s
-    dth_j = omega_f[None, :] * dt - 0.5 * J_t - (0.5/R_j) * J_r + (0.5/R_j) * J_s
+    dth_i = omega_f[None, :] * dt + 0.5 * J_t + (1.0/R_i) * J_r + (0.5/R_i) * J_s
+    dth_j = omega_f[None, :] * dt - 0.5 * J_t - (1.0/R_j) * J_r + (0.5/R_j) * J_s
     dtheta_b[1:] = dth_i - dth_j - J_t # J_t = dtheta_t[1:]
 
     # Magnus-4 orientation increments from two Gauss-point angular-velocity samples per step

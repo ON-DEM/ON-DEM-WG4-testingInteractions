@@ -17,7 +17,7 @@ if len(sys.argv) < 2:
 testID = int(sys.argv[1])
 testname = f'test_{testID:02d}'
 #yadePath = 'yade'  # Adjust this path if YADE is located elsewhere
-yadePath = '../../../../LS-DEM-dev/install-dev/bin/yade-2026-06-10.git-f351157' # Clean
+yadePath = '../../../../LS-DEM-dev/install-dev/bin/yade-2026-09-28.git-f119cbc' # Clean
 #yadePath = '../../../../LS-DEM-dev/install-noBCH/bin/yade-2026-06-23.git-3a543bc' # No BCH correction
 #yadePath = '../../../../LS-DEM-dev/install-noInitRB/bin/yade-2026-06-23.git-7769868' # No rigid-body motion init
 

@@ -6,7 +6,7 @@ import numpy as np
 
 # H_do_compare.py lives in scripts_PY/ and is software-agnostic
 # software-specific piece is scripts_DEM/<software>/G_generate_forces.py plus the
-# executable path listed in scripts_DEM/<software>/executable.txt.
+# executable path listed in scripts_DEM/<software>/executable_path.txt.
 SCRIPT_DIR = Path(__file__).resolve().parent     # scripts_PY/
 ROOT = SCRIPT_DIR.parent                          # project root
 sys.path.append(str(SCRIPT_DIR))
@@ -27,7 +27,7 @@ testname = f'test_{testID:02d}'
 # --- Locate the software-specific generator and its executable ---
 software_dir = ROOT / 'scripts_DEM' / software
 gen_script = 'G_generate_forces.py'          # run from software_dir
-exec_file = software_dir / 'executable.txt'
+exec_file = software_dir / 'executable_path.txt'
 
 if not software_dir.is_dir():
     print(f"ERROR: software folder not found: {software_dir}")

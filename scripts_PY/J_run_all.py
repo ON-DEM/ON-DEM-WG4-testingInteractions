@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-J_run_all.py  —  top-level orchestrator for the DEM contact-interaction test framework.
+J_run_all.py  —  top-level orchestrator for the DEM contact-interaction testing framework.
 
-Sits at the project root and sequentially runs:
+Sits in scripts_PY/ and sequentially runs:
   1. F_generate_analytical.py  (scripts_PY/)   — analytical reference data
-  2. H_do_compare.py           (scripts_DEM/<software>/)  — DEM simulation + comparison
+  2. H_do_compare.py           (scripts_PY/)   — DEM simulation + comparison
   3. I_make_figure.py          (scripts_PY/)   — figures and error tables
 
 Usage:
@@ -27,14 +27,14 @@ from pathlib import Path
 ALL_TESTS = list(range(1, 19))        # tests 1-17 are currently implemented
 ALL_SOFTWARES = ['YADE']              # add other DEM codes here as they are integrated
 
-# Path layout (all relative to this script, which lives at the project root)
-ROOT = Path(__file__).parent.resolve()
+# Path layout (all relative to this script, which lives in scripts_PY/)
+ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_PY  = ROOT / 'scripts_PY'
 SCRIPTS_DEM = ROOT / 'scripts_DEM'
 
 F_SCRIPT = 'F_generate_analytical.py'   # run from SCRIPTS_PY
 I_SCRIPT = 'I_make_figure.py'           # run from SCRIPTS_PY
-H_SCRIPT = 'H_do_compare.py'            # run from SCRIPTS_DEM/<software>/
+H_SCRIPT = 'H_do_compare.py'            # run from SCRIPTS_PY
 # ---------------------------------------------------------------------------
 
 
@@ -79,7 +79,7 @@ def main():
     results_I = {}  # (software, test) → bool
 
     # -----------------------------------------------------------------------
-    # Stage 1 — generate analytical reference data for every test
+    # Stage 1 — generate analytical reference data (F_generate_analytical.py)
     # -----------------------------------------------------------------------
     print("\n" + "="*70)
     print("STAGE 1 — Analytical reference data  (F_generate_analytical.py)")
@@ -137,8 +137,8 @@ def main():
 
                 label = f"H  {software}  test {test:02d}"
                 ok = run(
-                    [sys.executable, H_SCRIPT, str(test)],
-                    cwd=h_dir,
+                    [sys.executable, H_SCRIPT, software, str(test)],
+                    cwd=SCRIPTS_PY,
                     label=label,
                 )
                 results_H[(software, test)] = ok

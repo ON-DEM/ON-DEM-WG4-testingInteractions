@@ -1,0 +1,9 @@
+# Executable used to run G_generate_forces.py for this software (YADE).
+# H_do_compare.py reads this file and uses the FIRST non-comment, non-blank line.
+# Lines starting with '#' are kept as inactive alternatives.
+# Paths are resolved relative to this folder (scripts_DEM/YADE)
+#
+#yade  # Adjust this path if YADE is on the PATH / located elsewhere
+../../../../LS-DEM-dev/install-dev/bin/yade-2026-09-28.git-f119cbc        # Clean
+#../../../../LS-DEM-dev/install-noBCH/bin/yade-2026-06-23.git-3a543bc     # No BCH correction
+#../../../../LS-DEM-dev/install-noInitRB/bin/yade-2026-06-23.git-7769868  # No rigid-body motion init

@@ -482,7 +482,7 @@ else:
             )
     elif testID == 15:
         Reff = 2.0*(contact_params['R_i'] * contact_params['R_j']) / (contact_params['R_i'] + contact_params['R_j'])
-        contact_params['k_b'] = contact_params['k_r'] * (Reff ** 2)
+        contact_params['k_b'] = 0.5 * contact_params['k_r'] * (Reff ** 2)  # rolling-bending equivalence: k_b = R_eff^2 k_r / 2
         contact_params['k_r'] = 0.0
         results = my_analytical_contact(
             motion,

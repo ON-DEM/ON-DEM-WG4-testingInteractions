@@ -121,8 +121,8 @@ O.bodies[0].state.vel = (v_i[0,0], v_i[0,1], v_i[0,2])
 O.bodies[1].state.vel = (v_j[0,0], v_j[0,1], v_j[0,2])
 O.bodies[0].state.angVel = (omega_i[0,0], omega_i[0,1], omega_i[0,2])
 O.bodies[1].state.angVel = (omega_j[0,0], omega_j[0,1], omega_j[0,2])
-O.bodies[0].state.ori = Quaternion((q_i[0,0], q_i[0,1], q_i[0,2]), q_i[0,3])
-O.bodies[1].state.ori = Quaternion((q_j[0,0], q_j[0,1], q_j[0,2]), q_j[0,3])
+O.bodies[0].state.ori = Quaternion(q_i[0,3], q_i[0,0], q_i[0,1], q_i[0,2])
+O.bodies[1].state.ori = Quaternion(q_j[0,3], q_j[0,0], q_j[0,1], q_j[0,2])
 
 # --- Time stepping logic ---
 current_index = 0
@@ -147,10 +147,10 @@ def imposeKinematics():
             O.bodies[0].state.pos = (x_i[current_index,0], x_i[current_index,1], x_i[current_index,2])
             O.bodies[1].state.pos = (x_j[current_index,0], x_j[current_index,1], x_j[current_index,2])
 
-        	# orientations (if imposePos is True) -- shape (N,4) in [qx,qy,qz,qw] order
-            O.bodies[0].state.ori = Quaternion((q_i[current_index,0], q_i[current_index,1], q_i[current_index,2]), q_i[current_index,3])
-            O.bodies[1].state.ori = Quaternion((q_j[current_index,0], q_j[current_index,1], q_j[current_index,2]), q_j[current_index,3])
-
+        	# orientations (if imposePos is True) -- shape (N,4) in [qx,qy,qz,qw] order; YADE 4-scalar constructor takes (w, x, y, z)
+            O.bodies[0].state.ori = Quaternion(q_i[current_index,3], q_i[current_index,0], q_i[current_index,1], q_i[current_index,2])
+            O.bodies[1].state.ori = Quaternion(q_j[current_index,3], q_j[current_index,0], q_j[current_index,1], q_j[current_index,2])
+            
     current_index += 1
 
 # Staging dict: kinematics are recorded here by saveKinematics() and consumed

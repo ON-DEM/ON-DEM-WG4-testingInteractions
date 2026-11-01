@@ -5,7 +5,7 @@ Quantity & MAE$_i$ (\-) & MAE$_j$ (\-) \\
 \hline
 Position $\vec{x}$ & $<1.0\times10^{-16}$ & $<1.0\times10^{-16}$ \\
 Velocity $\vec{v}$ & $<1.0\times10^{-16}$ & $<1.0\times10^{-16}$ \\
-Orientation $\vec{q}$ & $1.11\times10^{-3}$ & $1.11\times10^{-3}$ \\
+Orientation $\vec{q}$ & $<1.0\times10^{-16}$ & $<1.0\times10^{-16}$ \\
 Ang. velocity $\vec{\omega}$ & $<1.0\times10^{-16}$ & $<1.0\times10^{-16}$ \\
 Force $\vec{F}$ & $6.54\times10^{-6}$ & $6.54\times10^{-6}$ \\
 Torque $\vec{T}$ & $2.73\times10^{-5}$ & $2.73\times10^{-5}$ \\

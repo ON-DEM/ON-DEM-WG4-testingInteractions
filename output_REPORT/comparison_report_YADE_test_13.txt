@@ -1,4 +1,4 @@
-Comparison Report for test_13
+Comparison Report for YADE test_13
 ============================================================
 
 x_i : PASS

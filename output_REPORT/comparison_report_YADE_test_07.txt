@@ -1,4 +1,4 @@
-Comparison Report for test_07
+Comparison Report for YADE test_07
 ============================================================
 
 x_i : PASS

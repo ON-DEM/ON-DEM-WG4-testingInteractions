@@ -396,3 +396,35 @@ def my_integrate_rotation(initial_quat, theta_vecs):
     return quats
 
 # End of file
+
+# -----------------------------------------------------------------------------
+# PROPOSED FIX (not applied): transported per-step contact increments
+# -----------------------------------------------------------------------------
+# Issue: du_s, du_r, dtheta_t and dtheta_b are currently the lab-frame integrals
+#   J = int_{t_a}^{t_b} s(tau) Rb(tau) d0 dtau   (via _rotated_integral),
+# i.e. each increment points in the step-AVERAGED direction. The contact laws then
+# do F <- R(omega_f dt) F - k du, which is the exact transport only if du is the
+# transported increment int R(omega_f (t_b - tau)) v(tau) dtau (Eq. sheardispincr).
+# The lab-frame integral lags that by omega_f*dt/2 (tests 5/6: 0.054 deg, constant
+# 0.094% relative error; tests 1-6 and 8 change by <= 0.06% force, 0.13% torque).
+#
+# Since the imposed directions are fixed in the contact frame, the transported
+# increment is simply the scalar rate integral times the END-of-step direction.
+# Replace the block after "t_a = t[:-1]; t_b = t[1:]" (J_t ... dtheta_b) with:
+#
+#    def _M(A_x, B_x, w_x, psi_x, k_x):   # int s(tau) dtau over each step
+#        return (A_x * (t_b - t_a)
+#                - B_x * (_expsin_antideriv(k_x, w_x, psi_x, t_b) - _expsin_antideriv(k_x, w_x, psi_x, t_a)))
+#    M_t = _M(A_t, B_t, w_t, phi_t, k_t)[:, None]
+#    M_r = _M(A_r, B_r, w_r, phi_r, k_r)[:, None]
+#    M_s = _M(A_s, B_s, w_s, phi_s, k_s)[:, None]
+#
+#    dtheta_t[1:] = M_t * n_ij[1:]
+#    du_r[1:]     = M_r * np.cross(nr_r, n_ij)[1:]
+#    du_s[1:]     = M_s * np.cross(nr_s, n_ij)[1:]
+#    dtheta_b[1:] = (1.0/R_i + 1.0/R_j) * M_r * nr_r[1:] + 0.5 * (1.0/R_i - 1.0/R_j) * M_s * nr_s[1:]
+#
+# (The bending line equals the old dth_i - dth_j - J_t; the omega_f and twist terms
+# cancel there.) With this, tests 5/6 match the exact transported solution to 1e-13.
+# _rotated_integral would then be unused.
+# -----------------------------------------------------------------------------
